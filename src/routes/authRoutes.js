@@ -6,8 +6,10 @@ const {
     getProfile
 } = require("../controllers/authController");
 
-const protect = require("../middleware/authMiddleware");
-
+const {
+    protect,
+    authorizeRoles
+} = require("../middleware/authMiddleware");
 
 router.post("/register", register);
 router.post("/login", login);
