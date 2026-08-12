@@ -50,12 +50,18 @@ const artisanProfileSchema = new mongoose.Schema(
             min: 0,
             max: 5
         },
-        completedJobs: {
+
+        totalReviews: {
             type: Number,
             default: 0,
             min: 0
         },
 
+        completedJobs: {
+            type: Number,
+            default: 0,
+            min: 0
+        },
     },
     {
         timestamps: true

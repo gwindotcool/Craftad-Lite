@@ -41,19 +41,19 @@ const jobSchema = new mongoose.Schema({
     status: {
         type: String,
         enum: [
-            "open",
+            "pending",
             "assigned",
+            "in_progress",
             "completed",
-            "cancelled"
+            "customer_confirmed"
         ],
-        default: "open"
+        default: "pending"
     },
-
     assignedArtisan: {
         type: mongoose.Schema.Types.ObjectId,
         ref: "User",
         default: null
-    }
+    },
 
 },{ timestamps: true });
 
