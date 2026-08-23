@@ -154,6 +154,14 @@ exports.acceptApplication = async (req, res) => {
                 message: "You are not allowed to accept applications for this job"
             });
         }
+        if (job.status !== "open") {
+            await session.abortTransaction();
+
+            return res.status(400).json({
+                success: false,
+                message: "Job is no longer available for assignment"
+            });
+        }
 
         // 4. Make sure application is still pending
         if (application.status !== "pending") {
@@ -180,23 +188,15 @@ exports.acceptApplication = async (req, res) => {
         }
 
         // 6. Accept selected application
-        await Application.findByIdAndUpdate(
-            applicationId,
-            {
-                status: "accepted"
-            },
-            { session }
-        );
+        application.status = "accepted";
+        await application.save({ session });
+
 
         // 7. Assign artisan to job
-        await Job.findByIdAndUpdate(
-            job._id,
-            {
-                status: "assigned",
-                assignedArtisan: artisanProfile._id
-            },
-            { session }
-        );
+        job.status = "assigned";
+        job.assignedArtisan = artisanProfile._id;
+
+        await job.save({ session });
 
         // 8. Reject other pending applications
         await Application.updateMany(
@@ -222,14 +222,15 @@ exports.acceptApplication = async (req, res) => {
     } catch (error) {
 
         // Undo all database changes if something fails
-        await session.abortTransaction();
-
+        if (session.inTransaction()) {
+            await session.abortTransaction();
+        }
         return res.status(500).json({
             success: false,
             message: error.message
         });
 
     } finally {
-        session.endSession();
+        await session.endSession();
     }
 };

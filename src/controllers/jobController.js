@@ -258,7 +258,7 @@ exports.confirmJob = async (req, res) => {
     }
 };
 
-exports.getAllJobs = async (req, res) => {
+exports.getMyJobs = async (req, res) => {
     try {
         const jobs = await Job.find({customer: req.user.userId})
             .sort({ createdAt: -1 });

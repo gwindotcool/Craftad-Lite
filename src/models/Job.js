@@ -41,17 +41,17 @@ const jobSchema = new mongoose.Schema({
     status: {
         type: String,
         enum: [
-            "pending",
+            "open",
             "assigned",
             "in_progress",
             "completed",
             "customer_confirmed"
         ],
-        default: "pending"
+        default: "open"
     },
     assignedArtisan: {
         type: mongoose.Schema.Types.ObjectId,
-        ref: "User",
+        ref: "ArtisanProfile",
         default: null
     },
 
