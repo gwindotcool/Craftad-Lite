@@ -10,5 +10,6 @@ const {
 
 router.post("/fund/:jobId", protect, authorizeRoles("customer"),paymentController.fundJobEscrow);
 router.patch("/release/:jobId", protect, authorizeRoles("customer"), paymentController.releaseEscrow);
+router.get("/history", protect, authorizeRoles("customer"), paymentController.getMyPayments);
 
 module.exports = router;

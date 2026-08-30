@@ -43,3 +43,29 @@ exports.fundWallet = async (req, res) => {
         });
     }
 }
+
+exports.getMyWallet = async (req, res) => {
+    try {
+        let wallet = await Wallet.findOne({
+            user: req.user.userId
+        });
+
+        if (!wallet) {
+            wallet = await Wallet.create({
+                user: req.user.userId,
+                balance: 0
+            });
+        }
+
+        return res.status(200).json({
+            success: true,
+            wallet
+        });
+
+    } catch (error) {
+        return res.status(500).json({
+            success: false,
+            message: error.message
+        });
+    }
+};

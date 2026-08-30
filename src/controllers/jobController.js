@@ -257,25 +257,55 @@ exports.confirmJob = async (req, res) => {
         });
     }
 };
-
 exports.getMyJobs = async (req, res) => {
     try {
-        const jobs = await Job.find({customer: req.user.userId})
-            .sort({ createdAt: -1 });
+        let jobs;
+
+        // Customer: get jobs they created
+        if (req.user.role === "customer") {
+            jobs = await Job.find({
+                customer: req.user.userId
+            }).sort({ createdAt: -1 });
+        }
+
+        // Artisan: get jobs assigned to their artisan profile
+        else if (req.user.role === "artisan") {
+            const artisanProfile = await ArtisanProfile.findOne({
+                user: req.user.userId
+            });
+
+            if (!artisanProfile) {
+                return res.status(404).json({
+                    success: false,
+                    message: "Artisan profile not found"
+                });
+            }
+
+            jobs = await Job.find({
+                assignedArtisan: artisanProfile._id
+            }).sort({ createdAt: -1 });
+        }
+
+        else {
+            return res.status(403).json({
+                success: false,
+                message: "Access denied"
+            });
+        }
+
         return res.status(200).json({
             success: true,
             count: jobs.length,
             jobs
-        })
+        });
 
-    }catch(error) {
-        res.status(500).json({
+    } catch (error) {
+        return res.status(500).json({
             success: false,
             message: error.message
-        })
+        });
     }
-}
-
+};
 exports.getAvailableJobs = async (req, res) => {
     try {
         const jobs = await Job.find({ status: "open"}).sort({ createdAt: -1 })

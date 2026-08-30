@@ -400,3 +400,25 @@ exports.releaseEscrow = async (req, res) => {
         await session.endSession();
     }
 };
+
+exports.getMyPayments = async (req, res) => {
+    try {
+        const payments = await Payment.find({
+            customer: req.user.userId
+        })
+            .populate("job", "title budget status")
+            .sort({ createdAt: -1 });
+
+        return res.status(200).json({
+            success: true,
+            count: payments.length,
+            payments
+        });
+
+    } catch (error) {
+        return res.status(500).json({
+            success: false,
+            message: error.message
+        });
+    }
+};
