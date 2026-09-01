@@ -92,14 +92,16 @@ exports.createReview = async (req, res) => {
 
         // 10. Update artisan rating
         const totalRating =
-            artisanProfile.rating * artisanProfile.totalReviews;
+            artisanProfile.ratingAverage * artisanProfile.totalReviews;
 
         artisanProfile.totalReviews += 1;
 
-        artisanProfile.rating = Number(
-            ((totalRating + Number(rating)) /
-            artisanProfile.totalReviews).toFixed(2)
-)
+        artisanProfile.ratingAverage = Number(
+            (
+                (totalRating + Number(rating)) /
+                artisanProfile.totalReviews
+            ).toFixed(2)
+        );
         await artisanProfile.save();
 
         return res.status(201).json({
