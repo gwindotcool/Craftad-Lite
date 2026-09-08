@@ -42,7 +42,7 @@ exports.createReview = async (req, res) => {
         }
 
         // 5. Job must be customer confirmed
-        if (job.status !== "customer_confirmed") {
+        if (!["customer_confirmed", "paid"].includes(job.status)) {
             return res.status(400).json({
                 success: false,
                 message: "Job must be confirmed before leaving a review"

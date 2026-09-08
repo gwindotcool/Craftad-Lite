@@ -191,6 +191,12 @@ exports.acceptApplication = async (req, res) => {
         application.status = "accepted";
         await application.save({ session });
 
+        job.status = "assigned";
+        job.assignedArtisan = artisanProfile._id;
+        job.agreedPrice = application.proposedPrice;
+
+        await job.save({ session });
+
 
         // 7. Assign artisan to job
         job.status = "assigned";
