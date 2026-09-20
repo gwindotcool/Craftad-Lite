@@ -33,6 +33,10 @@ const jobSchema = new mongoose.Schema({
         required: true,
         min: 0,
     },
+    agreedPrice: {
+        type: Number,
+        min: 0
+    },
     location: {
         type: String,
         required: true,
@@ -45,7 +49,8 @@ const jobSchema = new mongoose.Schema({
             "assigned",
             "in_progress",
             "completed",
-            "customer_confirmed"
+            "customer_confirmed",
+            "paid"
         ],
         default: "open"
     },

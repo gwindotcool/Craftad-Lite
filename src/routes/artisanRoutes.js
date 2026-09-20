@@ -1,18 +1,19 @@
-const express = require('express');
+const express = require("express");
+
 const router = express.Router();
 
-const {createProfile} = require('../controllers/artisanController');
+const artisanController = require("../controllers/artisanController");
 
-const {
-    protect,
-    authorizeRoles
-} = require('../middleware/authMiddleware');
+const {protect, authorizeRoles} = require("../middleware/authMiddleware");
 
-router.post(
-    "/profile",
-    protect,
-    authorizeRoles("artisan"),
-    createProfile
-);
+
+router.post("/create", protect, authorizeRoles("artisan"), artisanController.createProfile);
+
+
+router.get("/me", protect, authorizeRoles("artisan"), artisanController.getMyProfile);
+
+
+router.patch("/update", protect, authorizeRoles("artisan"), artisanController.updateProfile);
+
 
 module.exports = router;

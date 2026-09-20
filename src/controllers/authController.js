@@ -128,3 +128,47 @@ exports.getProfile = async (req, res) => {
         })
     }
 }
+
+
+// POST /api/users/fcm-token
+exports.registerFcmToken = async (req, res, next) => {
+    try {
+        const { token } = req.body;
+        const userId = req.user.userId;
+
+        if (!token) {
+            return res.status(400).json({ success: false, message: "FCM Token is required" });
+        }
+
+        // Add token if not already in user's fcmTokens array
+        await User.findByIdAndUpdate(userId, {
+            $addToSet: { fcmTokens: token },
+        });
+
+        res.status(200).json({
+            success: true,
+            message: "FCM token registered successfully",
+        });
+    } catch (error) {
+        next(error);
+    }
+};
+
+// DELETE /api/users/fcm-token
+exports.removeFcmToken = async (req, res, next) => {
+    try {
+        const { token } = req.body;
+        const userId = req.user.userId;
+
+        await User.findByIdAndUpdate(userId, {
+            $pull: { fcmTokens: token },
+        });
+
+        res.status(200).json({
+            success: true,
+            message: "FCM token removed successfully",
+        });
+    } catch (error) {
+        next(error);
+    }
+};

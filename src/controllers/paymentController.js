@@ -1,6 +1,7 @@
 const mongoose = require("mongoose");
 
-const Job = require("../models/job");
+const createNotification = require("../utils/notification");
+const Job = require("../models/Job");
 const Wallet = require("../models/Wallet");
 const Payment = require("../models/Payment");
 const Transaction = require("../models/Transaction");
@@ -8,6 +9,7 @@ const PlatformWallet = require("../models/PlatformWallet");
 const ArtisanProfile = require("../models/ArtisanProfile");
 
 exports.fundJobEscrow = async (req, res) => {
+
     const session = await mongoose.startSession();
 
     try {
@@ -84,9 +86,10 @@ exports.fundJobEscrow = async (req, res) => {
                 message: "Wallet not found"
             });
         }
+        const agreedPrice = job.agreedPrice;
 
         // 5. Check customer's balance
-        if (wallet.balance < job.budget) {
+        if (wallet.balance < job.agreedPrice) {
             await session.abortTransaction();
 
             return res.status(400).json({
@@ -110,9 +113,8 @@ exports.fundJobEscrow = async (req, res) => {
         }
 
         // 7. Calculate platform fee
-        const platformFee = job.budget * 0.10;
-
-        const artisanAmount = job.budget - platformFee;
+        const platformFee = agreedPrice * 0.10;
+        const artisanAmount = agreedPrice - platformFee;
 
         // 8. Create payment
         const reference = `CRFT-${Date.now()}`;
@@ -122,7 +124,7 @@ exports.fundJobEscrow = async (req, res) => {
                 customer: job.customer,
                 artisan: artisanProfile.user,
                 job: job._id,
-                amount: job.budget,
+                amount: agreedPrice,
                 platformFee,
                 artisanAmount,
                 status: "escrow_funded",
@@ -132,7 +134,7 @@ exports.fundJobEscrow = async (req, res) => {
         );
 
         // 9. Deduct money from customer wallet
-        wallet.balance -= job.budget;
+        wallet.balance -= agreedPrice;
 
         await wallet.save({session});
 
@@ -155,7 +157,7 @@ exports.fundJobEscrow = async (req, res) => {
         }
 
         // 11. Move money into escrow
-        platformWallet.escrowBalance += job.budget;
+        platformWallet.escrowBalance += agreedPrice;
 
         await platformWallet.save({session});
 
@@ -164,7 +166,7 @@ exports.fundJobEscrow = async (req, res) => {
             [{
                 user: userId,
                 type: "escrow_fund",
-                amount: job.budget,
+                amount: job.agreedPrice,
                 reference: `TX-${Date.now()}`,
                 status: "successful",
                 description: `Escrow funding for job ${job._id}`,
@@ -255,6 +257,7 @@ exports.releaseEscrow = async (req, res) => {
             });
         }
 
+
         // 5. Payment must still be in escrow
         if (payment.status !== "escrow_funded") {
             await session.abortTransaction();
@@ -308,8 +311,9 @@ exports.releaseEscrow = async (req, res) => {
         }
 
         // 9. Find platform wallet
-        const platformWallet = await PlatformWallet.findOne()
-            .session(session);
+        const platformWallet = await PlatformWallet.findOne({
+            key: "main"
+        }).session(session);
 
         if (!platformWallet) {
             await session.abortTransaction();
@@ -346,8 +350,10 @@ exports.releaseEscrow = async (req, res) => {
 
         // 14. Mark payment as released
         payment.status = "released";
-
         await payment.save({ session });
+
+        job.status = "paid";
+        await job.save({ session });
 
         // 15. Record artisan payment transaction
         await Transaction.create(
@@ -376,6 +382,14 @@ exports.releaseEscrow = async (req, res) => {
             }],
             { session }
         );
+        await createNotification({
+            user: artisanProfile.user,
+            sender: userId,
+            type: "PAYMENT_RELEASED",
+            title: "Payment Received",
+            message: `Your payment of ₦${payment.artisanAmount} has been released to your wallet.`,
+            job: job._id
+        });
 
         // 17. Commit everything
         await session.commitTransaction();
@@ -398,5 +412,27 @@ exports.releaseEscrow = async (req, res) => {
 
     } finally {
         await session.endSession();
+    }
+};
+
+exports.getMyPayments = async (req, res) => {
+    try {
+        const payments = await Payment.find({
+            customer: req.user.userId
+        })
+            .populate("job", "title budget agreedPrice status")
+            .sort({ createdAt: -1 });
+
+        return res.status(200).json({
+            success: true,
+            count: payments.length,
+            payments
+        });
+
+    } catch (error) {
+        return res.status(500).json({
+            success: false,
+            message: error.message
+        });
     }
 };

@@ -14,6 +14,7 @@ const transactionSchema = new mongoose.Schema(
                 "escrow_fund",
                 "escrow_release",
                 "platform_fee",
+                "wallet_fund",
                 "withdrawal"
             ],
             required: true

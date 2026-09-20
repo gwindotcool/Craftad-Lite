@@ -1,7 +1,9 @@
-const Job = require("../models/job");
+const Job = require("../models/Job");
 const Application = require("../models/application");
 const mongoose = require("mongoose");
 const ArtisanProfile = require("../models/ArtisanProfile");
+const createNotification = require("../utils/notification");
+
 
 exports.applyForJob = async (req, res) => {
     try {
@@ -49,16 +51,25 @@ exports.applyForJob = async (req, res) => {
         // Create application
         const application = await Application.create({
             artisan: req.user.userId,
-            job: jobId,
+            job: job._id,
             proposedPrice,
             message
+        });
+        await createNotification({
+            user: job.customer,
+            sender: req.user.userId,
+            type: "JOB_APPLICATION",
+            title: "New Job Application",
+            message: "An artisan has applied for your job.",
+            job: job._id
         });
 
         return res.status(201).json({
             success: true,
             message: "Application created successfully",
             application
-        });
+        })
+
 
     } catch (err) {
         return res.status(500).json({
@@ -66,6 +77,7 @@ exports.applyForJob = async (req, res) => {
             message: err.message
         });
     }
+
 };
 
 exports.getJobApplications = async (req, res) => {
@@ -191,10 +203,9 @@ exports.acceptApplication = async (req, res) => {
         application.status = "accepted";
         await application.save({ session });
 
-
-        // 7. Assign artisan to job
         job.status = "assigned";
         job.assignedArtisan = artisanProfile._id;
+        job.agreedPrice = application.proposedPrice;
 
         await job.save({ session });
 
@@ -213,6 +224,15 @@ exports.acceptApplication = async (req, res) => {
 
         // 9. Commit everything
         await session.commitTransaction();
+
+        await createNotification({
+            user: application.artisan,
+            sender: req.user.userId,
+            type: "APPLICATION_ACCEPTED",
+            title: "Application Accepted",
+            message: "Your application has been accepted for the job.",
+            job: job._id
+        });
 
         return res.status(200).json({
             success: true,
