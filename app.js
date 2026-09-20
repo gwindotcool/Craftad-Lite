@@ -11,6 +11,8 @@ const reviewRoutes = require("./src/routes/reviewRoutes");
 const walletRoutes = require("./src/routes/walletRoutes");
 const paymentRoute = require("./src/routes/paymentRoute");
 const transactionRoutes = require("./src/routes/transactionRoutes");
+const notificationRoutes = require("./src/routes/notificationRoutes");
+const chatRoutes = require("./src/routes/chatRoutes");
 
 app.use(
     cors({
@@ -28,6 +30,8 @@ app.use("/api/reviews", reviewRoutes);
 app.use("/api/wallet", walletRoutes);
 app.use("/api/payments", paymentRoute);
 app.use("/api/transactions", transactionRoutes);
+app.use("/api/notifications", notificationRoutes);
+app.use("/api/chat", chatRoutes);
 
 app.get("/api/health", (req, res) => {
     res.status(200).json({

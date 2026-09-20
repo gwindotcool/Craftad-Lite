@@ -1,6 +1,7 @@
 const mongoose = require("mongoose");
 
-const Job = require("../models/job");
+const createNotification = require("../utils/notification");
+const Job = require("../models/Job");
 const Wallet = require("../models/Wallet");
 const Payment = require("../models/Payment");
 const Transaction = require("../models/Transaction");
@@ -8,6 +9,7 @@ const PlatformWallet = require("../models/PlatformWallet");
 const ArtisanProfile = require("../models/ArtisanProfile");
 
 exports.fundJobEscrow = async (req, res) => {
+
     const session = await mongoose.startSession();
 
     try {
@@ -380,6 +382,14 @@ exports.releaseEscrow = async (req, res) => {
             }],
             { session }
         );
+        await createNotification({
+            user: artisanProfile.user,
+            sender: userId,
+            type: "PAYMENT_RELEASED",
+            title: "Payment Received",
+            message: `Your payment of ₦${payment.artisanAmount} has been released to your wallet.`,
+            job: job._id
+        });
 
         // 17. Commit everything
         await session.commitTransaction();

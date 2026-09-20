@@ -1,96 +1,112 @@
+const mongoose = require("mongoose");
 const Review = require("../models/Review");
-const Job = require("../models/job");
+const Job = require("../models/Job");
 const ArtisanProfile = require("../models/ArtisanProfile");
 
 exports.createReview = async (req, res) => {
+    // 1. Initialize and start the session at the very top
+    const session = await mongoose.startSession();
+    session.startTransaction();
+
     try {
         const { jobId } = req.params;
         const { rating, comment } = req.body;
 
-        // 1. Check rating exists
+        // 2. Check rating exists
         if (!rating) {
+            await session.abortTransaction();
             return res.status(400).json({
                 success: false,
                 message: "Rating is required"
             });
         }
 
-        // 2. Make sure rating is between 1 and 5
+        // 3. Make sure rating is between 1 and 5
         if (rating < 1 || rating > 5) {
+            await session.abortTransaction();
             return res.status(400).json({
                 success: false,
                 message: "Rating must be between 1 and 5"
             });
         }
 
-        // 3. Find the job
-        const job = await Job.findById(jobId);
+        // 4. Find the job
+        const job = await Job.findById(jobId).session(session);
 
         if (!job) {
+            await session.abortTransaction();
             return res.status(404).json({
                 success: false,
                 message: "Job not found"
             });
         }
 
-        // 4. Make sure customer owns the job
+        // 5. Make sure customer owns the job
         if (job.customer.toString() !== req.user.userId) {
+            await session.abortTransaction();
             return res.status(403).json({
                 success: false,
                 message: "You are not allowed to review this job"
             });
         }
 
-        // 5. Job must be customer confirmed
+        // 6. Job must be customer confirmed or paid
         if (!["customer_confirmed", "paid"].includes(job.status)) {
+            await session.abortTransaction();
             return res.status(400).json({
                 success: false,
                 message: "Job must be confirmed before leaving a review"
             });
         }
 
-        // 6. Make sure an artisan was assigned
+        // 7. Make sure an artisan was assigned
         if (!job.assignedArtisan) {
+            await session.abortTransaction();
             return res.status(400).json({
                 success: false,
                 message: "No artisan was assigned to this job"
             });
         }
 
-        // 7. Check whether this job already has a review
+        // 8. Check whether this job already has a review
         const existingReview = await Review.findOne({
             job: jobId
-        });
+        }).session(session);
 
         if (existingReview) {
+            await session.abortTransaction();
             return res.status(400).json({
                 success: false,
                 message: "You have already reviewed this job"
             });
         }
 
-        // 8. Get artisan profile
+        // 9. Get artisan profile
         const artisanProfile = await ArtisanProfile.findById(
             job.assignedArtisan
-        );
+        ).session(session);
 
         if (!artisanProfile) {
+            await session.abortTransaction();
             return res.status(404).json({
                 success: false,
-                message: "Artisan profile not found"
+                message: "Assigned artisan profile not found"
             });
         }
 
-        // 9. Create review
-        const review = await Review.create({
-            customer: req.user.userId,
-            artisan: artisanProfile.user,
-            job: jobId,
-            rating,
-            comment
-        });
+        // 10. Create review
+        const review = await Review.create(
+            [{
+                customer: req.user.userId,
+                artisan: artisanProfile.user,
+                job: jobId,
+                rating,
+                comment
+            }],
+            { session }
+        );
 
-        // 10. Update artisan rating
+        // 11. Update artisan rating
         const totalRating =
             artisanProfile.ratingAverage * artisanProfile.totalReviews;
 
@@ -102,18 +118,27 @@ exports.createReview = async (req, res) => {
                 artisanProfile.totalReviews
             ).toFixed(2)
         );
-        await artisanProfile.save();
+
+        await artisanProfile.save({ session });
+
+        // 12. Commit everything atomically
+        await session.commitTransaction();
 
         return res.status(201).json({
             success: true,
             message: "Review created successfully",
-            review
+            review: review[0]
         });
 
     } catch (error) {
+        if (session.inTransaction()) {
+            await session.abortTransaction();
+        }
         return res.status(500).json({
             success: false,
             message: error.message
         });
+    } finally {
+        await session.endSession();
     }
 };

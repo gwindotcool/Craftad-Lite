@@ -1,5 +1,6 @@
-const Job = require('../models/job');
+const Job = require('../models/Job');
 const ArtisanProfile = require("../models/ArtisanProfile");
+const createNotification = require('../utils/notification')
 
 exports.createJob = async (req, res) => {
     try {
@@ -123,6 +124,14 @@ exports.startJob = async (req, res) => {
         job.status = "in_progress";
 
         await job.save();
+        await createNotification({
+            user: job.customer,
+            sender: req.user.userId,
+            type: "JOB_STARTED",
+            title: "Job Started",
+            message: "The artisan has started working on your job.",
+            job: job._id
+        });
 
         return res.status(200).json({
             success: true,
@@ -195,6 +204,14 @@ exports.completeJob = async (req, res) => {
         job.status = "completed";
 
         await job.save();
+        await createNotification({
+            user: job.customer,
+            sender: req.user.userId,
+            type: "JOB_COMPLETED",
+            title: "Job Completed",
+            message: "The artisan has completed the job.",
+            job: job._id
+        });
 
         return res.status(200).json({
             success: true,
@@ -209,6 +226,8 @@ exports.completeJob = async (req, res) => {
         });
     }
 };
+
+
 exports.confirmJob = async (req, res) => {
     try {
         const { jobId } = req.params;
@@ -239,10 +258,31 @@ exports.confirmJob = async (req, res) => {
             });
         }
 
-        // 4. Confirm the job
+        // 4. Find the assigned artisan's profile
+        const artisanProfile = await ArtisanProfile.findById(
+            job.assignedArtisan
+        );
+
+        if (!artisanProfile) {
+            return res.status(404).json({
+                success: false,
+                message: "Assigned artisan profile not found"
+            });
+        }
+
+        // 5. Confirm the job
         job.status = "customer_confirmed";
 
         await job.save();
+
+        await createNotification({
+            user: artisanProfile.user,
+            sender: req.user.userId,
+            type: "JOB_CONFIRMED",
+            title: "Job Confirmed",
+            message: "The customer confirmed the job is completed successfully.",
+            job: job._id
+        });
 
         return res.status(200).json({
             success: true,
@@ -257,6 +297,7 @@ exports.confirmJob = async (req, res) => {
         });
     }
 };
+
 exports.getMyJobs = async (req, res) => {
     try {
         let jobs;
