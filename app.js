@@ -21,6 +21,8 @@ app.use(
         origin: "http://localhost:5173",
     })
 );
+app.use("/api/webhook", webhookRoute)
+
 
 app.use(express.json());
 
@@ -34,7 +36,6 @@ app.use("/api/payments", paymentRoute);
 app.use("/api/transactions", transactionRoutes);
 app.use("/api/notifications", notificationRoutes);
 app.use("/api/chat", chatRoutes);
-app.use("/api/webhook", webhookRoute)
 
 
 app.get("/api/health", (req, res) => {
