@@ -4,37 +4,38 @@ const Wallet = require("../models/Wallet");
 const Transaction = require("../models/Transaction");
 
 exports.paystackWebhook = async (req, res) => {
-    // 1. Acknowledge receipt immediately so Paystack doesn't retry
+    // 1. Acknowledge receipt immediately
     res.status(200).send("OK");
 
     try {
-        // 2. Verify the cryptographic signature
         const secret = process.env.PAYSTACK_SECRET_KEY;
         if (!secret) throw new Error("PAYSTACK_SECRET_KEY is missing");
 
+        // 2. Hash the RAW BUFFER, do not stringify it!
         const hash = crypto
             .createHmac("sha512", secret)
-            .update(JSON.stringify(req.body))
+            .update(req.body)
             .digest("hex");
 
         if (hash !== req.headers["x-paystack-signature"]) {
             console.error("🚨 Hack attempt: Invalid Paystack signature");
-            return; // Silently drop the request
+            return;
         }
 
-        const event = req.body;
+        // 3. Now parse the buffer into JSON to read it
+        const event = JSON.parse(req.body.toString());
 
-        // 3. We only care about successful charges
         if (event.event === "charge.success") {
             const { reference, amount, metadata } = event.data;
-            const fundAmount = amount / 100; // Paystack sends amounts in Kobo. Convert to NGN.
-            const userId = metadata?.userId; // You MUST pass this from the frontend when initializing
+            const fundAmount = amount / 100;
+
+            // 4. Extract userId from metadata, NOT from req.user
+            const userId = metadata?.userId;
 
             if (!userId) {
                 console.error("Webhook Error: No userId found in Paystack metadata");
                 return;
             }
-
             const session = await mongoose.startSession();
             session.startTransaction();
 

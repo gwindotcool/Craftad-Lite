@@ -7,6 +7,12 @@ const walletSchema = new mongoose.Schema ({
         required: true,
         unique: true
     },
+        bankDetails: {
+            accountName: { type: String },
+            accountNumber: { type: String },
+            bankCode: { type: String },
+            recipientCode: { type: String }
+        },
     balance: {
         type: Number,
         default: 0,
