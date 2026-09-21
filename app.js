@@ -13,12 +13,16 @@ const paymentRoute = require("./src/routes/paymentRoute");
 const transactionRoutes = require("./src/routes/transactionRoutes");
 const notificationRoutes = require("./src/routes/notificationRoutes");
 const chatRoutes = require("./src/routes/chatRoutes");
+const webhookRoute = require("./src/routes/webhookRoute");
+
 
 app.use(
     cors({
         origin: "http://localhost:5173",
     })
 );
+app.use("/api/webhook", webhookRoute)
+
 
 app.use(express.json());
 
@@ -33,11 +37,13 @@ app.use("/api/transactions", transactionRoutes);
 app.use("/api/notifications", notificationRoutes);
 app.use("/api/chat", chatRoutes);
 
+
 app.get("/api/health", (req, res) => {
     res.status(200).json({
         success: true,
         message: "Craftad API is running"
     });
+
 });
 
 module.exports = app;
