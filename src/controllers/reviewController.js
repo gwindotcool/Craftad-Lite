@@ -4,6 +4,9 @@ const Job = require("../models/Job");
 const ArtisanProfile = require("../models/ArtisanProfile");
 
 exports.createReview = async (req, res) => {
+
+    const userId = req.user._id || req.user.id || req.user.userId;
+
     // 1. Initialize and start the session at the very top
     const session = await mongoose.startSession();
     session.startTransaction();
@@ -42,7 +45,7 @@ exports.createReview = async (req, res) => {
         }
 
         // 5. Make sure customer owns the job
-        if (job.customer.toString() !== req.user.userId) {
+        if (job.customer.toString() !== userId) {
             await session.abortTransaction();
             return res.status(403).json({
                 success: false,
@@ -97,7 +100,7 @@ exports.createReview = async (req, res) => {
         // 10. Create review
         const review = await Review.create(
             [{
-                customer: req.user.userId,
+                customer:userId,
                 artisan: artisanProfile.user,
                 job: jobId,
                 rating,
