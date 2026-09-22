@@ -10,11 +10,12 @@ const transactionSchema = new mongoose.Schema(
         type: {
             type: String,
             enum: [
-                "wallet_fund",         // Adding money via Paystack
-                "withdrawal",          // Pushing money out via Paystack
-                "job_payment_escrow",  // Locking client funds
-                "job_payment_release", // Paying the artisan upon completion
-                "escrow_refund"        // Refunding the client if the job is canceled
+                "wallet_fund",
+                "withdrawal",
+                "job_payment_escrow",
+                "job_payment_release", // <-- YOU NEED THIS
+                "platform_fee",        // <-- AND YOU NEED THIS
+                "escrow_refund"
             ],
             required: true
         },
