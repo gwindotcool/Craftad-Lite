@@ -3,253 +3,177 @@ const Application = require("../models/application");
 const mongoose = require("mongoose");
 const ArtisanProfile = require("../models/ArtisanProfile");
 const createNotification = require("../utils/notification");
-
+const PlatformWallet = require("../models/PlatformWallet");
+const Wallet = require("../models/Wallet");
+const Transaction = require("../models/Transaction");
 
 exports.applyForJob = async (req, res) => {
     try {
-        // Get job ID from URL
         const { jobId } = req.params;
+        // 1. Extract the ID safely
+        const artisanId = req.user._id || req.user.id || req.user.userId;
 
-        // Get application details
-        const {
-            proposedPrice,
-            message
-        } = req.body;
+        if (!artisanId) return res.status(401).json({ success: false, message: "Unauthorized: Missing user ID" });
 
-        // Find the job
+        const { proposedPrice, message } = req.body;
+
         const job = await Job.findById(jobId);
+        if (!job) return res.status(404).json({ success: false, message: "Job not found" });
+        if (job.status !== "open") return res.status(400).json({ success: false, message: "Job not available" });
 
-        // Job doesn't exist
-        if (!job) {
-            return res.status(404).json({
-                success: false,
-                message: "Job not found"
-            });
+        // 2. Use the safe artisanId, not req.user.userId
+        if (job.customer.toString() === artisanId.toString()) {
+            throw new Error("You cannot apply to your own job");
         }
 
-        // Job is no longer available
-        if (job.status !== "open") {
-            return res.status(400).json({
-                success: false,
-                message: "Job not available"
-            });
-        }
-
-        // Check if this artisan already applied
-        const existingApplication = await Application.findOne({
-            artisan: req.user.userId,
-            job: jobId
-        });
-
+        // 3. Use the safe artisanId
+        const existingApplication = await Application.findOne({ artisan: artisanId, job: jobId });
         if (existingApplication) {
-            return res.status(400).json({
-                success: false,
-                message: "You have already applied for this job"
-            });
+            return res.status(400).json({ success: false, message: "You have already applied for this job" });
         }
 
-        // Create application
+        // 4. Match the schema exactly
         const application = await Application.create({
-            artisan: req.user.userId,
+            artisan: artisanId,
             job: job._id,
             proposedPrice,
             message
         });
+
+        // 5. Use the safe artisanId
         await createNotification({
             user: job.customer,
-            sender: req.user.userId,
+            sender: artisanId,
             type: "JOB_APPLICATION",
             title: "New Job Application",
             message: "An artisan has applied for your job.",
             job: job._id
         });
 
-        return res.status(201).json({
-            success: true,
-            message: "Application created successfully",
-            application
-        })
-
+        return res.status(201).json({ success: true, message: "Application created successfully", application });
 
     } catch (err) {
-        return res.status(500).json({
-            success: false,
-            message: err.message
-        });
+        return res.status(500).json({ success: false, message: err.message });
     }
-
 };
 
 exports.getJobApplications = async (req, res) => {
     try {
-        // 1. Get job ID from URL
         const { jobId } = req.params;
+        // 1. Extract the ID safely!
+        const clientId = req.user._id || req.user.id || req.user.userId;
 
-        // 2. Find the job
+        if (!clientId) return res.status(401).json({ success: false, message: "Unauthorized: Missing user ID" });
+
         const job = await Job.findById(jobId);
+        if (!job) return res.status(404).json({ success: false, message: "Job not found" });
 
-        // 3. Make sure the job exists
-        if (!job) {
-            return res.status(404).json({
-                success: false,
-                message: "Job not found"
-            });
+        // 2. Use the safe clientId and enforce string comparison
+        if (job.customer.toString() !== clientId.toString()) {
+            return res.status(403).json({ success: false, message: "You are not allowed to view these applications" });
         }
 
-        // 4. Make sure this customer owns the job
-        if (job.customer.toString() !== req.user.userId) {
-            return res.status(403).json({
-                success: false,
-                message: "You are not allowed to view these applications"
-            });
-        }
+        const applications = await Application.find({ job: jobId }).populate("artisan", "fullName email");
 
-        // 5. Find all applications for this job
-        const applications = await Application.find({
-            job: jobId
-        }).populate("artisan", "fullName email");
-
-        // 6. Return applications
-        return res.status(200).json({
-            success: true,
-            count: applications.length,
-            applications
-        });
+        return res.status(200).json({ success: true, count: applications.length, applications });
 
     } catch (error) {
-        return res.status(500).json({
-            success: false,
-            message: error.message
-        });
+        return res.status(500).json({ success: false, message: error.message });
     }
 };
+
 exports.acceptApplication = async (req, res) => {
     const session = await mongoose.startSession();
+    session.startTransaction();
 
     try {
-        session.startTransaction();
-
         const { applicationId } = req.params;
+        const clientId = req.user._id || req.user.id || req.user.userId;
 
-        // 1. Find application
-        const application = await Application.findById(applicationId)
-            .session(session);
+        // 1. Find Application & Job
+        const application = await Application.findById(applicationId).session(session);
+        if (!application) throw new Error("Application not found");
 
-        if (!application) {
-            await session.abortTransaction();
+        const job = await Job.findById(application.job).session(session);
+        if (!job) throw new Error("Job not found");
 
-            return res.status(404).json({
-                success: false,
-                message: "Application not found"
-            });
+        // 2. Validate Ownership & Status
+        if (job.customer.toString() !== clientId.toString()) {
+            throw new Error("You are not authorized to accept applications for this job");
+        }
+        if (job.status !== "open") throw new Error("Job is no longer available");
+        if (application.status !== "pending") throw new Error("Application is no longer pending");
+
+        // 3. THE ESCROW CHECK: Can the client afford this?
+        const clientWallet = await Wallet.findOne({ user: clientId }).session(session);
+        if (!clientWallet || clientWallet.balance < application.proposedPrice) {
+            throw new Error(`Insufficient funds. Please fund your wallet with at least ${application.proposedPrice} NGN.`);
         }
 
-        // 2. Find the job
-        const job = await Job.findById(application.job)
-            .session(session);
+        // 4. Secure the Bag: Deduct from Client, move to Escrow
+        clientWallet.balance -= application.proposedPrice;
+        await clientWallet.save({ session });
 
-        if (!job) {
-            await session.abortTransaction();
+        const platformWallet = await PlatformWallet.findOneAndUpdate(
+            {},
+            { $inc: { escrowBalance: application.proposedPrice } },
+            { upsert: true, session, returnDocument: "after" } // <-- Fixed
+        );
 
-            return res.status(404).json({
-                success: false,
-                message: "Job not found"
-            });
-        }
+        // 5. Create the Escrow Transaction Ledger
+        await Transaction.create([{
+            user: clientId,
+            job: job._id,
+            amount: application.proposedPrice,
+            type: "job_payment_escrow",
+            status: "successful",
+            reference: `ESC-${Date.now()}`,
+            description: `Escrow lock for job: ${job.title}`
+        }], { session });
 
-        // 3. Make sure customer owns the job
-        if (job.customer.toString() !== req.user.userId) {
-            await session.abortTransaction();
+        // 6. Find Artisan Profile & Update Statuses
+        const artisanProfile = await ArtisanProfile.findOne({ user: application.artisan }).session(session);
+        if (!artisanProfile) throw new Error("Artisan profile not found");
 
-            return res.status(403).json({
-                success: false,
-                message: "You are not allowed to accept applications for this job"
-            });
-        }
-        if (job.status !== "open") {
-            await session.abortTransaction();
-
-            return res.status(400).json({
-                success: false,
-                message: "Job is no longer available for assignment"
-            });
-        }
-
-        // 4. Make sure application is still pending
-        if (application.status !== "pending") {
-            await session.abortTransaction();
-
-            return res.status(400).json({
-                success: false,
-                message: "Application is no longer pending"
-            });
-        }
-
-        // 5. Find artisan profile
-        const artisanProfile = await ArtisanProfile.findOne({
-            user: application.artisan
-        }).session(session);
-
-        if (!artisanProfile) {
-            await session.abortTransaction();
-
-            return res.status(404).json({
-                success: false,
-                message: "Artisan profile not found"
-            });
-        }
-
-        // 6. Accept selected application
         application.status = "accepted";
         await application.save({ session });
 
         job.status = "assigned";
         job.assignedArtisan = artisanProfile._id;
         job.agreedPrice = application.proposedPrice;
-
         await job.save({ session });
 
-        // 8. Reject other pending applications
+        // 7. Bulk Reject Losers
         await Application.updateMany(
-            {
-                job: job._id,
-                _id: { $ne: applicationId },
-                status: "pending"
-            },
-            {
-                status: "rejected"
-            },
+            { job: job._id, _id: { $ne: applicationId }, status: "pending" },
+            { status: "rejected" },
             { session }
         );
 
-        // 9. Commit everything
+        // 8. Commit
         await session.commitTransaction();
 
+        // 9. Notifications (Post-transaction)
         await createNotification({
             user: application.artisan,
-            sender: req.user.userId,
+            sender: clientId,
             type: "APPLICATION_ACCEPTED",
             title: "Application Accepted",
-            message: "Your application has been accepted for the job.",
+            message: "Your application was accepted and funds are secured in escrow.",
             job: job._id
         });
 
         return res.status(200).json({
             success: true,
-            message: "Application accepted successfully"
+            message: "Application accepted and funds secured in escrow"
         });
 
     } catch (error) {
-
-        // Undo all database changes if something fails
-        if (session.inTransaction()) {
-            await session.abortTransaction();
-        }
-        return res.status(500).json({
+        if (session.inTransaction()) await session.abortTransaction();
+        return res.status(error.message.includes("Insufficient funds") ? 400 : 500).json({
             success: false,
             message: error.message
         });
-
     } finally {
         await session.endSession();
     }
