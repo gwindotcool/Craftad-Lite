@@ -1,0 +1,8 @@
+$kind: http-request
+name: Start Job
+method: PATCH
+url: '{{baseUrl}}/api/job/{{jobId}}/start'
+order: 4000
+pathVariables:
+  - key: jobId
+    value: '{{jobId}}'

@@ -1,0 +1,16 @@
+$kind: http-request
+name: Update Profile
+method: PATCH
+url: '{{baseUrl}}/api/artisans/update'
+order: 3000
+headers:
+  - key: Content-Type
+    value: application/json
+body:
+  type: json
+  content: |-
+    {
+      "bio": "Updated bio text.",
+      "yearsOfExperience": 7,
+      "serviceRadiusKm": 30
+    }

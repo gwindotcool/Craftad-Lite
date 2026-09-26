@@ -1,0 +1,15 @@
+$kind: http-request
+name: Verify Bank Account
+method: POST
+url: '{{baseUrl}}/api/wallet/verify-bank'
+order: 3000
+headers:
+  - key: Content-Type
+    value: application/json
+body:
+  type: json
+  content: |-
+    {
+      "accountNumber": "0123456789",
+      "bankCode": "058"
+    }

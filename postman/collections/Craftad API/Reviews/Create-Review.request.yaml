@@ -1,0 +1,18 @@
+$kind: http-request
+name: Create Review
+method: POST
+url: '{{baseUrl}}/api/reviews/{{jobId}}'
+order: 1000
+pathVariables:
+  - key: jobId
+    value: '{{jobId}}'
+headers:
+  - key: Content-Type
+    value: application/json
+body:
+  type: json
+  content: |-
+    {
+      "rating": 5,
+      "comment": "Excellent work! Very professional and completed the job on time."
+    }

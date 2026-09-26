@@ -1,0 +1,16 @@
+$kind: http-request
+name: Add Withdrawal Bank
+method: POST
+url: '{{baseUrl}}/api/wallet/add-bank'
+order: 4000
+headers:
+  - key: Content-Type
+    value: application/json
+body:
+  type: json
+  content: |-
+    {
+      "accountName": "John Doe",
+      "accountNumber": "0123456789",
+      "bankCode": "058"
+    }

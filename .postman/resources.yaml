@@ -1,0 +1,7 @@
+workspace:
+  id: 682d3a53-203b-4a26-87c4-1cb2e9c50316
+cloudResources:
+  collections:
+    ../postman/collections/Craftad API: 50017083-4bf28a58-831c-46a6-94c1-32541d7c36d8
+  globals:
+    ../postman/globals/workspace.globals.yaml: f0235264-6545-48cb-8ce7-9bf0a1f803ed

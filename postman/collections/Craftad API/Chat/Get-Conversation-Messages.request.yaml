@@ -1,0 +1,13 @@
+$kind: http-request
+name: Get Conversation Messages
+method: GET
+url: '{{baseUrl}}/api/chat/conversations/{{conversationId}}/messages?page=1&limit=20'
+order: 3000
+pathVariables:
+  - key: conversationId
+    value: '{{conversationId}}'
+queryParams:
+  - key: page
+    value: '1'
+  - key: limit
+    value: '20'

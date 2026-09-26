@@ -1,0 +1,14 @@
+$kind: http-request
+name: Fund Wallet
+method: POST
+url: '{{baseUrl}}/api/wallet/fund'
+order: 2000
+headers:
+  - key: Content-Type
+    value: application/json
+body:
+  type: json
+  content: |-
+    {
+      "amount": 50000
+    }

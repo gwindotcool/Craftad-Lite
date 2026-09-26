@@ -1,0 +1,8 @@
+$kind: http-request
+name: Complete Job
+method: PATCH
+url: '{{baseUrl}}/api/job/{{jobId}}/complete'
+order: 5000
+pathVariables:
+  - key: jobId
+    value: '{{jobId}}'

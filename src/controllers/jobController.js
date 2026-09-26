@@ -5,6 +5,7 @@ const mongoose = require("mongoose");
 const Wallet = require("../models/Wallet");
 const PlatformWallet = require("../models/PlatformWallet");
 const Transaction = require("../models/Transaction");
+const redis = require("../config/redis");
 
 exports.createJob = async (req, res) => {
     try {
@@ -60,11 +61,15 @@ exports.createJob = async (req, res) => {
             location
         });
 
+        // THE INVALIDATOR: Delete the stale cache so the next request fetches the new job
+        await redis.del("job_feed");
+
         return res.status(201).json({
             success: true,
             message: "Job created successfully",
             job
         });
+
 
     } catch (error) {
         return res.status(500).json({
@@ -313,66 +318,110 @@ exports.confirmJob = async (req, res) => {
 };
 
 exports.getMyJobs = async (req, res) => {
+    const userId = req.user._id || req.user.id || req.user.userId;
+
     try {
-        let jobs;
+        const page = parseInt(req.query.page) || 1;
+        const limit = parseInt(req.query.limit) || 10;
+        const skip = (page - 1) * limit;
 
-        // Customer: get jobs they created
+        let jobs; // Must be let, not const, so we can reassign it below
+        let query = {}; // We will build the query object based on the user role
+
+        // Customer: query jobs they created
         if (req.user.role === "customer") {
-            jobs = await Job.find({
-                customer: req.user.userId
-            }).sort({ createdAt: -1 });
+            query = { customer: userId };
         }
-
-        // Artisan: get jobs assigned to their artisan profile
+        // Artisan: query jobs assigned to their profile
         else if (req.user.role === "artisan") {
-            const artisanProfile = await ArtisanProfile.findOne({
-                user: req.user.userId
-            });
-
+            const artisanProfile = await ArtisanProfile.findOne({ user: userId }).select("-__v");
             if (!artisanProfile) {
-                return res.status(404).json({
-                    success: false,
-                    message: "Artisan profile not found"
-                });
+                return res.status(404).json({ success: false, message: "Artisan profile not found" });
             }
-
-            jobs = await Job.find({
-                assignedArtisan: artisanProfile._id
-            }).sort({ createdAt: -1 });
+            query = { assignedArtisan: artisanProfile._id };
+        } else {
+            return res.status(403).json({ success: false, message: "Access denied" });
         }
 
-        else {
-            return res.status(403).json({
-                success: false,
-                message: "Access denied"
-            });
-        }
+        // Get total count for pagination metadata based on the specific query
+        const totalItems = await Job.countDocuments(query);
+        const totalPages = Math.ceil(totalItems / limit);
+
+        // Fetch the paginated jobs, stripping out the __v field
+        jobs = await Job.find(query)
+            .select("-__v")
+            .sort({ createdAt: -1 })
+            .skip(skip)
+            .limit(limit);
 
         return res.status(200).json({
             success: true,
             count: jobs.length,
+            pagination: {
+                page,
+                limit,
+                totalItems,
+                totalPages
+            },
+            source: "mongodb 🐢",
             jobs
         });
 
     } catch (error) {
-        return res.status(500).json({
-            success: false,
-            message: error.message
-        });
+        return res.status(500).json({ success: false, message: error.message });
     }
 };
+
 exports.getAvailableJobs = async (req, res) => {
     try {
-        const jobs = await Job.find({ status: "open"}).sort({ createdAt: -1 })
+        const page = parseInt(req.query.page) || 1;
+        const limit = parseInt(req.query.limit) || 10;
+        const skip = (page - 1) * limit;
+
+        const fieldKey = `page:${page}:limit:${limit}`; // The inner field name
+
+        // 1. Check Redis Hash for this specific page
+        const cachedData = await redis.hget("job_feed", fieldKey);
+
+        if (cachedData) {
+            const parsedData = JSON.parse(cachedData);
+            return res.status(200).json({
+                success: true,
+                count: parsedData.jobs.length,
+                pagination: parsedData.pagination,
+                source: "redis cache ⚡",
+                jobs: parsedData.jobs
+            });
+        }
+
+        // 2. Cache Miss: Query MongoDB
+        const query = { status: "open" };
+        const totalItems = await Job.countDocuments(query);
+        const totalPages = Math.ceil(totalItems / limit);
+
+        const jobs = await Job.find(query)
+            .select("-__v")
+            .sort({ createdAt: -1 })
+            .skip(skip)
+            .limit(limit);
+
+        const responsePayload = {
+            jobs,
+            pagination: { page, limit, totalItems, totalPages }
+        };
+
+        // 3. Save to Redis Hash and set expiration on the whole hash
+        await redis.hset("job_feed", fieldKey, JSON.stringify(responsePayload));
+        await redis.expire("job_feed", 3600); // Expires the entire hash in 1 hour
+
         return res.status(200).json({
             success: true,
-            count:jobs.length,
+            count: jobs.length,
+            pagination: responsePayload.pagination,
+            source: "mongodb 🐢",
             jobs
-        })
-    }catch(error) {
-        res.status(500).json({
-            success: false,
-            message: error.message
-        })
+        });
+    } catch (error) {
+        return res.status(500).json({ success: false, message: error.message });
     }
-}
+};

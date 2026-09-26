@@ -2,9 +2,9 @@ const mongoose = require("mongoose");
 
 const messageSchema = new mongoose.Schema(
     {
-        conversation: {
+        job: {
             type: mongoose.Schema.Types.ObjectId,
-            ref: "Conversation",
+            ref: "Job",
             required: true,
             index: true
         },

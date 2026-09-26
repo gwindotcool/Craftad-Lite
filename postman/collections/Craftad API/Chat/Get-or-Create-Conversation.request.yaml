@@ -1,0 +1,14 @@
+$kind: http-request
+name: Get or Create Conversation
+method: POST
+url: '{{baseUrl}}/api/chat/conversations'
+order: 2000
+headers:
+  - key: Content-Type
+    value: application/json
+body:
+  type: json
+  content: |-
+    {
+      "jobId": "{{jobId}}"
+    }

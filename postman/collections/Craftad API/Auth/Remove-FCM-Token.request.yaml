@@ -1,0 +1,14 @@
+$kind: http-request
+name: Remove FCM Token
+method: DELETE
+url: '{{baseUrl}}/api/auth/fcm-token'
+order: 5000
+headers:
+  - key: Content-Type
+    value: application/json
+body:
+  type: json
+  content: |-
+    {
+      "token": "your_fcm_device_token_here"
+    }

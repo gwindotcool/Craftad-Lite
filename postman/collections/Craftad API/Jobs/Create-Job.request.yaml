@@ -1,0 +1,18 @@
+$kind: http-request
+name: Create Job
+method: POST
+url: '{{baseUrl}}/api/job/create-job'
+order: 1000
+headers:
+  - key: Content-Type
+    value: application/json
+body:
+  type: json
+  content: |-
+    {
+      "title": "Fix kitchen sink",
+      "description": "The kitchen sink is leaking and needs to be repaired.",
+      "category": "plumber",
+      "budget": 15000,
+      "location": "Lagos Island"
+    }

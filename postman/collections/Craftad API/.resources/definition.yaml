@@ -1,0 +1,13 @@
+$kind: collection
+name: Craftad API
+description: 'Complete API collection for the Craftad Lite platform — a marketplace connecting customers with skilled artisans.'
+auth:
+  type: bearer
+  credentials:
+    - key: token
+      value: '{{token}}'
+variables:
+  - key: baseUrl
+    value: 'http://localhost:5000'
+  - key: token
+    value: ''

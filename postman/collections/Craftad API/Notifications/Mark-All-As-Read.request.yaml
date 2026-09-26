@@ -1,0 +1,5 @@
+$kind: http-request
+name: Mark All As Read
+method: PATCH
+url: '{{baseUrl}}/api/notifications/read-all'
+order: 2000

@@ -1,0 +1,24 @@
+$kind: http-request
+name: Paystack Webhook
+method: POST
+url: '{{baseUrl}}/api/webhook/paystack'
+order: 1000
+auth:
+  type: noauth
+headers:
+  - key: Content-Type
+    value: application/json
+  - key: x-paystack-signature
+    value: '{{paystackSignature}}'
+body:
+  type: json
+  content: |-
+    {
+      "event": "charge.success",
+      "data": {
+        "id": 123456789,
+        "reference": "FUND-1234567890-123",
+        "amount": 5000000,
+        "status": "success"
+      }
+    }

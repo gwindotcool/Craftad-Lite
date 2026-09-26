@@ -1,0 +1,18 @@
+$kind: http-request
+name: Apply for Job
+method: POST
+url: '{{baseUrl}}/api/applications/apply/{{jobId}}'
+order: 1000
+pathVariables:
+  - key: jobId
+    value: '{{jobId}}'
+headers:
+  - key: Content-Type
+    value: application/json
+body:
+  type: json
+  content: |-
+    {
+      "proposedPrice": 12000,
+      "message": "I have 5 years of experience with this type of work and can start immediately."
+    }

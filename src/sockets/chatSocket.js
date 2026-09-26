@@ -1,64 +1,68 @@
-const Conversation = require("../models/Conversation");
 const Message = require("../models/Message");
+const Job = require("../models/Job");
 
 module.exports = (io, socket) => {
     const userId = socket.user.userId;
 
     socket.join(`user:${userId}`);
 
-    // 1. Join Conversation Room
-    socket.on("join_conversation", async ({ conversationId }) => {
+    // 1. Join job Room
+    socket.on("join_job", async ({ jobId }) => {
         try {
-            const conversation = await Conversation.findById(conversationId);
-            if (!conversation) {
-                return socket.emit("error", { message: "Conversation not found" });
+            // Populate assignedArtisan so we can access .user
+            const job = await Job.findById(jobId).populate("assignedArtisan");
+
+            if (!job) {
+                return socket.emit("error", { message: "Job not found" });
             }
 
-            const isCustomer = conversation.customer.toString() === userId;
-            const isArtisan = conversation.artisan.toString() === userId;
+            const isCustomer = job.customer.toString() === userId;
+
+            // Now we check against the actual User ID inside the profile
+            const isArtisan = job.assignedArtisan && job.assignedArtisan.user.toString() === userId;
 
             if (!isCustomer && !isArtisan) {
                 return socket.emit("error", { message: "Unauthorized access" });
             }
 
-            const roomName = `conversation:${conversationId}`;
+            const roomName = `job:${jobId}`;
             socket.join(roomName);
-            socket.emit("joined_room", { room: roomName, conversationId });
+            socket.emit("joined_room", { room: roomName, jobId });
         } catch (error) {
             socket.emit("error", { message: error.message });
         }
     });
 
     // 2. Typing Indicator Events
-    socket.on("typing", ({ conversationId }) => {
-        const roomName = `conversation:${conversationId}`;
+    socket.on("typing", ({ jobId }) => {
+        const roomName = `job:${jobId}`;
         // Broadcast to everyone in the room EXCEPT the sender
         socket.to(roomName).emit("user_typing", {
-            conversationId,
+            jobId,
             userId,
         });
     });
 
-    socket.on("stop_typing", ({ conversationId }) => {
-        const roomName = `conversation:${conversationId}`;
+    socket.on("stop_typing", ({ jobId }) => {
+        const roomName = `job:${jobId}`;
         socket.to(roomName).emit("user_stopped_typing", {
-            conversationId,
+            jobId,
             userId,
         });
     });
 
     // 3. Real-Time Mark Messages as Read
-    socket.on("mark_messages_read", async ({ conversationId }) => {
+    socket.on("mark_messages_read", async ({ jobId }) => {
         try {
-            const conversation = await Conversation.findById(conversationId);
-            if (!conversation) {
-                return socket.emit("error", { message: "Conversation not found" });
+            const job = await Job.findById(jobId);
+            if (!job) {
+                return socket.emit("error", { message: "job not found" });
             }
 
             // Mark all unread messages sent TO this user as read
             const result = await Message.updateMany(
                 {
-                    conversation: conversationId,
+                    job: jobId,
                     recipient: userId,
                     isRead: false,
                 },
@@ -66,11 +70,11 @@ module.exports = (io, socket) => {
             );
 
             if (result.modifiedCount > 0) {
-                const roomName = `conversation:${conversationId}`;
+                const roomName = `job:${jobId}`;
 
-                // Notify the conversation room so the sender's UI updates read status (double blue ticks)
+                // Notify the job room so the sender's UI updates read status (double blue ticks)
                 io.to(roomName).emit("messages_read_receipt", {
-                    conversationId,
+                    jobId,
                     readBy: userId,
                     readCount: result.modifiedCount,
                 });
@@ -81,40 +85,47 @@ module.exports = (io, socket) => {
     });
 
     // 4. Send Message
-    socket.on("send_message", async ({ conversationId, text }) => {
+    socket.on("send_message", async ({ jobId, text }) => {
         try {
             if (!text || !text.trim()) {
                 return socket.emit("error", { message: "Message text cannot be empty" });
             }
+            // Populate assignedArtisan so we can access .user
+            const job = await Job.findById(jobId).populate("assignedArtisan");
 
-            const conversation = await Conversation.findById(conversationId);
-            if (!conversation) {
-                return socket.emit("error", { message: "Conversation not found" });
+            if (!job) {
+                return socket.emit("error", { message: "job not found" });
             }
+            const isCustomer = job.customer.toString() === userId;
 
-            const isCustomer = conversation.customer.toString() === userId;
-            const recipientId = isCustomer ? conversation.artisan : conversation.customer;
+            // Now we check against the actual User ID inside the profile
+            const isArtisan = job.assignedArtisan && job.assignedArtisan.user.toString() === userId;
+
+            if (!isCustomer && !isArtisan) {
+                return socket.emit("error", { message: "Unauthorized access" });
+            }
+            const recipientId = isCustomer ? job.assignedArtisan.user : job.customer;
 
             const newMessage = await Message.create({
-                conversation: conversationId,
+                job: jobId,
                 sender: userId,
                 recipient: recipientId,
                 text: text.trim(),
             });
 
-            conversation.lastMessage = text.trim();
-            conversation.lastMessageAt = new Date();
-            await conversation.save();
+            job.lastMessage = text.trim();
+            job.lastMessageAt = new Date();
+            await job.save();
 
-            const roomName = `conversation:${conversationId}`;
+            const roomName = `job:${jobId}`;
 
             io.to(roomName).emit("new_message", {
                 message: newMessage,
-                conversationId,
+                jobId,
             });
 
             io.to(`user:${recipientId}`).emit("unread_message_alert", {
-                conversationId,
+                jobId,
                 senderId: userId,
             });
         } catch (error) {
@@ -122,8 +133,8 @@ module.exports = (io, socket) => {
         }
     });
 
-    socket.on("leave_conversation", ({ conversationId }) => {
-        socket.leave(`conversation:${conversationId}`);
+    socket.on("leave_job", ({ jobId }) => {
+        socket.leave(`job:${jobId}`);
     });
 
     socket.on("disconnect", (reason) => {

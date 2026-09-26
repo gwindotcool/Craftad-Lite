@@ -1,0 +1,8 @@
+$kind: http-request
+name: Accept Application
+method: PATCH
+url: '{{baseUrl}}/api/applications/accept/{{applicationId}}'
+order: 3000
+pathVariables:
+  - key: applicationId
+    value: '{{applicationId}}'

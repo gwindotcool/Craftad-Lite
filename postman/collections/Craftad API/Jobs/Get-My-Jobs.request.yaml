@@ -1,0 +1,5 @@
+$kind: http-request
+name: Get My Jobs
+method: GET
+url: '{{baseUrl}}/api/job/my-jobs'
+order: 2000

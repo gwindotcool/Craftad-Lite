@@ -1,0 +1,14 @@
+$kind: http-request
+name: Register FCM Token
+method: POST
+url: '{{baseUrl}}/api/auth/fcm-token'
+order: 4000
+headers:
+  - key: Content-Type
+    value: application/json
+body:
+  type: json
+  content: |-
+    {
+      "token": "your_fcm_device_token_here"
+    }

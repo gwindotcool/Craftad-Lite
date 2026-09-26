@@ -35,11 +35,13 @@ const jobSchema = new mongoose.Schema({
     },
     agreedPrice: {
         type: Number,
-        min: 0
+        min: 0,
+        default: 0,
     },
     location: {
         type: String,
         required: true,
+        set: (v) => v.toLowerCase()
     },
 
     status: {
@@ -60,7 +62,7 @@ const jobSchema = new mongoose.Schema({
         default: null
     },
 
-},{ timestamps: true });
+},{ timestamps: true, versionKey: false },);
 
 
 

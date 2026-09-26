@@ -1,0 +1,22 @@
+$kind: http-request
+name: Create Profile
+method: POST
+url: '{{baseUrl}}/api/artisans/create'
+order: 1000
+headers:
+  - key: Content-Type
+    value: application/json
+body:
+  type: json
+  content: |-
+    {
+      "skills": ["plumber", "electrician"],
+      "yearsOfExperience": 5,
+      "bio": "Experienced artisan with 5+ years of service.",
+      "serviceAreas": ["Lagos", "Abuja"],
+      "serviceRadiusKm": 20,
+      "location": {
+        "type": "Point",
+        "coordinates": [3.3792, 6.5244]
+      }
+    }
