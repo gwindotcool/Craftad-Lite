@@ -1,7 +1,7 @@
 const request = require("supertest");
-const app = require("../app");
-const User = require("../src/models/User");
-const Notification = require("../src/models/Notification");
+const app = require("../../app");
+const User = require("../models/User");
+const Notification = require("../models/Notification");
 const jwt = require("jsonwebtoken");
 
 require("./setup"); // Import in-memory database lifecycle setup
