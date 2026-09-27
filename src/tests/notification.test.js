@@ -98,3 +98,10 @@ describe("Notification API Integration Tests", () => {
         });
     });
 });
+const mongoose = require("mongoose");
+
+// This runs automatically after all tests are finished
+afterAll(async () => {
+    // Forcefully close the database connection
+    await mongoose.connection.close();
+});

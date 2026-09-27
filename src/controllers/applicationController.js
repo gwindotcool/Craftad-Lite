@@ -1,5 +1,5 @@
 const Job = require("../models/Job");
-const Application = require("../models/application");
+const Application = require("../models/Application");
 const mongoose = require("mongoose");
 const ArtisanProfile = require("../models/ArtisanProfile");
 const createNotification = require("../utils/notification");

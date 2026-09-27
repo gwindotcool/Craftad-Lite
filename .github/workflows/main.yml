@@ -10,25 +10,37 @@ jobs:
   build-and-test:
     runs-on: ubuntu-latest
 
+    # This tells GitHub to spin up a Redis server right beside your test server
+    services:
+      redis:
+        image: redis:latest
+        ports:
+          - 6379:6379
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
     strategy:
       matrix:
         node-version: [18.x, 20.x]
 
     steps:
-    - name: Checkout Repository
-      uses: actions/checkout@v4
+      - name: Checkout Repository
+        uses: actions/checkout@v4
 
-    - name: Setup Node.js ${{ matrix.node-version }}
-      uses: actions/setup-node@v4
-      with:
-        node-version: ${{ matrix.node-version }}
-        cache: 'npm'
+      - name: Setup Node.js ${{ matrix.node-version }}
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ matrix.node-version }}
+          cache: 'npm'
 
-    - name: Install Dependencies
-      run: npm ci
+      - name: Install Dependencies
+        run: npm ci
 
-    - name: Run Security Audit
-      run: npm audit --audit-level=high
+      - name: Run Security Audit
+        run: npm audit --audit-level=high
 
-    - name: Run Tests
-      run: npm test --if-present
+      - name: Run Tests
+        run: npm test --if-present
