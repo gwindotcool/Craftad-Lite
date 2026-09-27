@@ -15,6 +15,7 @@ describe("Notification API Integration Tests", () => {
         testUser = await User.create({
             firstName: "John",
             lastName: "Doe",
+            fullName: "John Doe",
             email: "john@example.com",
             password: "hashedpassword123",
             role: "customer"
