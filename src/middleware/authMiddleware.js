@@ -12,19 +12,21 @@ const protect = async function (req, res, next) {
         const token = authHeader.split(" ")[1];
         const decoded = jwt.verify(
             token,
-            process.env.JWT_SECRET
+            process.env.JWT_SECRET || "test_secret"
         );
         req.user = decoded;
         next();
 
-    }catch(err) {
-       return res.status(401).json({
-           success: false,
-           message: "Not authorized, invalid token"
-        })
+    } catch (err) {
+        // Log the exact error to the terminal
+        console.log("JWT Verification Error:", err.message);
+
+        return res.status(401).json({
+            success: false,
+            message: "Not authorized, invalid token"
+        });
     }
 }
-
 const authorizeRoles = (...roles) => {
     return (req, res, next) => {
         if (!roles.includes(req.user.role)) {

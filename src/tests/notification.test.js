@@ -3,6 +3,7 @@ const app = require("../../app");
 const User = require("../models/User");
 const Notification = require("../models/Notification");
 const jwt = require("jsonwebtoken");
+const mongoose = require("mongoose");
 
 require("./setup"); // Import in-memory database lifecycle setup
 
@@ -17,13 +18,18 @@ describe("Notification API Integration Tests", () => {
             lastName: "Doe",
             fullName: "John Doe",
             email: "john@example.com",
-            password: "hashedpassword123",
+            password: "password123",
             role: "customer"
         });
 
-        // 2. Generate test JWT
+        // 2. Generate test JWT containing all possible ID formats
         userToken = jwt.sign(
-            { userId: testUser._id, role: testUser.role },
+            {
+                id: testUser._id,
+                userId: testUser._id,
+                _id: testUser._id,
+                role: testUser.role
+            },
             process.env.JWT_SECRET || "test_secret",
             { expiresIn: "1h" }
         );
@@ -31,22 +37,9 @@ describe("Notification API Integration Tests", () => {
 
     describe("GET /api/notifications", () => {
         it("should retrieve logged-in user's notifications and unread count", async () => {
-            // Seed test notifications in memory DB
             await Notification.create([
-                {
-                    user: testUser._id,
-                    type: "JOB_STARTED",
-                    title: "Job Started",
-                    message: "Artisan started the work",
-                    isRead: false
-                },
-                {
-                    user: testUser._id,
-                    type: "JOB_COMPLETED",
-                    title: "Job Completed",
-                    message: "Artisan completed work",
-                    isRead: false
-                }
+                { user: testUser._id, type: "JOB_STARTED", title: "Job Started", message: "Artisan started the work", isRead: false },
+                { user: testUser._id, type: "JOB_COMPLETED", title: "Job Completed", message: "Artisan completed work", isRead: false }
             ]);
 
             const res = await request(app)
@@ -99,7 +92,6 @@ describe("Notification API Integration Tests", () => {
         });
     });
 });
-const mongoose = require("mongoose");
 
 // This runs automatically after all tests are finished
 afterAll(async () => {
