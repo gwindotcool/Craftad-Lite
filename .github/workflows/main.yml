@@ -48,3 +48,9 @@ jobs:
 
       - name: Run Tests
         run: npm test --if-present
+               - name: Run Tests
+               run: npm test --if-present
+               env:
+                 MONGODB_URI: mongodb://127.0.0.1:27017/craftad_lite
+                 JWT_SECRET: super_secret_test_key_for_ci
+                 NODE_ENV: test
