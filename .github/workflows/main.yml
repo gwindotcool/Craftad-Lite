@@ -12,6 +12,10 @@ jobs:
 
     # This tells GitHub to spin up a Redis server right beside your test server
     services:
+      mongodb:
+        image: mongo:latest
+        ports:
+          - 27017:27017
       redis:
         image: redis:latest
         ports:
@@ -28,7 +32,7 @@ jobs:
 
     steps:
       - name: Checkout Repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@v3
 
       - name: Setup Node.js ${{ matrix.node-version }}
         uses: actions/setup-node@v4
