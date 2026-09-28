@@ -1,3 +1,7 @@
+const crypto = require("crypto");
+Object.defineProperty(globalThis, "crypto", { value: crypto.webcrypto });
+
+
 const request = require("supertest");
 const mongoose = require("mongoose");
 const app = require("../../app");
