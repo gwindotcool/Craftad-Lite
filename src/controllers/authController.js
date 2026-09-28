@@ -62,6 +62,12 @@ exports.login = async (req, res) => {
                 message: "Invalid email or password"
             });
         }
+        if (!user.isActive) {
+            return res.status(403).json({
+                success: false,
+                message: "Your account has been suspended by an administrator."
+            });
+        }
 
         // Compare entered password with hashed password
         const isPasswordCorrect = await bcrypt.compare(

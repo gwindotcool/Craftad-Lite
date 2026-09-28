@@ -33,6 +33,16 @@ const userSchema = new mongoose.Schema(
                 trim: true,
             },
         ],
+        isActive: {
+            type: Boolean,
+            default: true
+        },
+        isVerified: {
+            type: Boolean,
+            default: function() {
+                return this.role !== 'artisan'; // Customers are auto-verified, artisans start unverified
+            }
+        }
     },
 
     {

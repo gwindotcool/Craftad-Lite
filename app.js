@@ -16,6 +16,8 @@ const transactionRoutes = require("./src/routes/transactionRoutes");
 const notificationRoutes = require("./src/routes/notificationRoutes");
 const webhookRoute = require("./src/routes/webhookRoute");
 const chatRoutes = require("./src/routes/chatRoutes");
+const adminAuthRoutes = require("./src/routes/adminAuthRoutes");
+const adminUserRoutes = require("./src/routes/adminUserRoutes");
 
 // 1. WEBHOOKS (Must be before express.json() and before rate limiters)
 app.use("/api/webhook", webhookRoute);
@@ -46,6 +48,9 @@ app.use((req, res, next) => {
 });
 
 // 6. STANDARD API ROUTES
+
+app.use("/api/admin/auth", adminAuthRoutes);
+app.use("/api/admin/users", adminUserRoutes);
 app.use("/api/auth", authRoutes);
 app.use("/api/artisans", artisanRoutes);
 app.use("/api/job", jobRoutes);

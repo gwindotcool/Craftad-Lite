@@ -18,9 +18,6 @@ const protect = async function (req, res, next) {
         next();
 
     } catch (err) {
-        // Log the exact error to the terminal
-        console.log("JWT Verification Error:", err.message);
-
         return res.status(401).json({
             success: false,
             message: "Not authorized, invalid token"
