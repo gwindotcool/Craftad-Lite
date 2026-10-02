@@ -19,9 +19,8 @@ const chatRoutes = require("./src/routes/chatRoutes");
 const adminAuthRoutes = require("./src/routes/adminAuthRoutes");
 const adminUserRoutes = require("./src/routes/adminUserRoutes");
 const escrowRoutes = require("./src/routes/escrowRoutes");
-const swaggerJsDoc = require("swagger-jsdoc");
 const swaggerUi = require("swagger-ui-express");
-
+const swaggerSpec = require("./src/config/swagger");
 
 // 1. WEBHOOKS (Must be before express.json() and before rate limiters)
 app.use("/api/webhook", webhookRoute);
@@ -80,40 +79,7 @@ app.use((req, res, next) => {
 
 
 // 5.5 SWAGGER API DOCUMENTATION SETUP
-const swaggerOptions = {
-    definition: {
-        openapi: "3.0.0",
-        info: {
-            title: "Craftad Lite API",
-            version: "1.0.0",
-            description: "Official API Documentation for the Craftad Artisan Marketplace",
-            contact: {
-                name: "Backend Engineering Team"
-            }
-        },
-        servers: [
-            {
-                url: process.env.NODE_ENV === "production" ? process.env.BACKEND_URL : "http://localhost:3000",
-                description: "Environment Server"
-            }
-        ],
-        components: {
-            securitySchemes: {
-                bearerAuth: {
-                    type: "http",
-                    scheme: "bearer",
-                    bearerFormat: "JWT",
-                },
-            },
-        },
-        security: [{ bearerAuth: [] }], // Applies JWT requirement globally to docs
-    },
-    apis: ["./src/routes/*.js"], // Tells Swagger to look for comments in all your route files
-};
-
-const swaggerDocs = swaggerJsDoc(swaggerOptions);
-app.use("/api-docs", swaggerUi.serve, swaggerUi.setup(swaggerDocs));
-
+app.use("/api-docs", swaggerUi.serve, swaggerUi.setup(swaggerSpec));
 
 // 6. STANDARD API ROUTES
 
