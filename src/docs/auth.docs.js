@@ -49,6 +49,21 @@
  *           type: string
  *           format: date-time
  *
+ *     LoginResponse:
+ *       type: object
+ *       properties:
+ *         success:
+ *           type: boolean
+ *           example: true
+ *         message:
+ *           type: string
+ *           example: "Login successful"
+ *         token:
+ *           type: string
+ *           example: "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."
+ *         user:
+ *           $ref: '#/components/schemas/User'
+ *
  *     RegisterRequest:
  *       type: object
  *       required:
@@ -141,6 +156,10 @@
  *     responses:
  *       200:
  *         description: Login successful
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/LoginResponse'
  *       401:
  *         description: Invalid email or password
  *       403:

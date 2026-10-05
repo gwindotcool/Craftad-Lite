@@ -11,16 +11,12 @@ router.get(
     walletController.getMyWallet
 );
 
-router.post(
-    "/fund",
-    protect,
-    walletController.fundWallet
-);
+router.post("/deposit", protect, walletController.fundWallet);
 // Artisans must be logged in to verify accounts
-router.post("/verify-bank", protect, authorizeRoles("artisan"), walletController.verifyBankAccount);
+router.get("banks/resolve", protect, authorizeRoles("artisan"), walletController.resolveBank);
 
-router.post("/add-bank", protect, authorizeRoles("artisan"), walletController.addWithdrawalBank);
+router.post("/banks", protect, authorizeRoles("artisan"), walletController.addWithdrawalBank);
 
-router.post("/withdraw", protect, authorizeRoles("artisan"), walletController.requestWithdrawal);
+router.post("/withdrawals", protect, authorizeRoles("artisan"), walletController.requestWithdrawal);
 
 module.exports = router;

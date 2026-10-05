@@ -5,7 +5,7 @@ const chatController = require("../controllers/chatController");
 
 router.use(protect);
 
-// 1. Get all conversations of logged-in user
-router.get("/:jobId",protect, chatController.getChatHistory);
+// 1. Get chat of logged-in user
+router.get("/:jobId", chatController.getChatHistory);
 
 module.exports = router;

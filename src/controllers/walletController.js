@@ -92,8 +92,8 @@ exports.getMyWallet = async (req, res) => {
     }
 };
 
-exports.verifyBankAccount = async (req, res) => {
-    const { accountNumber, bankCode } = req.body;
+exports.resolveBank = async (req, res) => {
+    const { accountNumber, bankCode } = req.query;
 
     // 1. Stress test the input
     if (!accountNumber || !bankCode) {

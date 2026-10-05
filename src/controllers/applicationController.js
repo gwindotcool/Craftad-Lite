@@ -116,11 +116,16 @@ exports.acceptApplication = async (req, res) => {
 
         const platformWallet = await PlatformWallet.findOneAndUpdate(
             { key: "main" },
-            {},
             {
-                $inc: { escrowBalance: application.proposedPrice } },
-            { upsert: true, session, returnDocument: "after" }, // <-- Fixed
-        { session, returnDocument: "after", upsert: true }
+                $inc: {
+                    escrowBalance: application.proposedPrice
+                }
+            },
+            {
+                upsert: true,
+                session,
+                returnDocument: "after"
+            }
         );
 
         // 5. Create the Escrow Transaction Ledger
