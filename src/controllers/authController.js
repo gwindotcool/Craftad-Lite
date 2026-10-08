@@ -5,6 +5,14 @@ const jwt = require("jsonwebtoken");
 //Register User
 exports.register = async (req, res) => {
     try {
+
+        if (!req.body || Object.keys(req.body).length === 0) {
+            return res.status(400).json({
+                success: false,
+                message: "Request body is missing or empty"
+            });
+        }
+
         const { fullName, email, password, role } = req.body;
 
         // Check if user already exists
@@ -16,6 +24,8 @@ exports.register = async (req, res) => {
                 message: "User already exists"
             });
         }
+
+
 
         // Hash password
         const hashedPassword = await bcrypt.hash(password, 12);

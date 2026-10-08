@@ -11,4 +11,6 @@ router.patch('/:id/dispute', protect, escrowController.raiseDispute)
 
 router.patch('/:id/resolve', protectAdmin, escrowController.resolveDispute)
 
+router.post("/fund/:jobId", protect, escrowController.fundEscrow);
+
 module.exports = router;

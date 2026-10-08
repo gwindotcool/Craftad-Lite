@@ -201,3 +201,113 @@ exports.resolveDispute = async (req, res) => {
         session.endSession();
     }
 };
+const Job = require("../models/Job");
+const Wallet = require("../models/Wallet");
+const Application = require("../models/Application");
+const PlatformWallet = require("../models/PlatformWallet");
+const Transaction = require("../models/Transaction");
+const crypto = require("crypto");
+
+exports.fundEscrow = async (req, res) => {
+    const session = await mongoose.startSession();
+    session.startTransaction();
+
+    try {
+        const clientId = req.user._id || req.user.id || req.user.userId;
+        const jobId = req.params.jobId;
+
+        // 1. Find the Job
+        const job = await Job.findById(jobId).session(session);
+        if (!job) {
+            throw new Error("Job not found");
+        }
+
+        if (job.client.toString() !== clientId.toString()) {
+            throw new Error("Unauthorized: Only the job owner can fund escrow");
+        }
+
+        if (job.status !== "open" && job.status !== "assigned") {
+            throw new Error(`Cannot fund escrow for a job with status: ${job.status}`);
+        }
+
+        // 2. Find the accepted application to get the agreed price and artisan ID
+        const application = await Application.findOne({ job: jobId, status: "accepted" }).session(session);
+        if (!application) {
+            throw new Error("No accepted application found for this job");
+        }
+
+        const amount = application.proposedPrice || job.budget;
+        if (!amount || amount <= 0) {
+            throw new Error("Invalid job funding amount");
+        }
+
+        // 3. Check Customer Wallet Balance
+        const customerWallet = await Wallet.findOne({ user: clientId }).session(session);
+        if (!customerWallet || customerWallet.balance < amount) {
+            throw new Error("Insufficient wallet balance to fund escrow");
+        }
+
+        // 4. Check if Escrow already exists for this job
+        const existingEscrow = await Escrow.findOne({ job: jobId }).session(session);
+        if (existingEscrow) {
+            throw new Error("Escrow has already been funded for this job");
+        }
+
+        // 5. Deduct from Customer Wallet
+        customerWallet.balance -= amount;
+        await customerWallet.save({ session });
+
+        // 6. Create Escrow Record
+        const escrow = await Escrow.create([{
+            job: jobId,
+            client: clientId,
+            artisan: application.artisan,
+            amount: amount,
+            escrowStatus: "HELD"
+        }], { session });
+
+        // 7. Update Platform Escrow Balance (if you track it)
+        await PlatformWallet.findOneAndUpdate(
+            { key: "main" },
+            { $inc: { escrowBalance: amount } },
+            { upsert: true, new: true, session }
+        );
+
+        // 8. Create Transaction Ledger
+        const ref = `ESC-${crypto.randomBytes(6).toString("hex").toUpperCase()}`;
+        await Transaction.create([{
+            user: clientId,
+            job: jobId,
+            amount: amount,
+            type: "escrow_funded",
+            status: "successful",
+            reference: ref,
+            description: `Escrow funded for job: ${job.title}`
+        }], { session });
+
+        // 9. Update Job Status to Assigned / In Progress
+        job.status = "assigned";
+        await job.save({ session });
+
+        await session.commitTransaction();
+
+        return res.status(200).json({
+            success: true,
+            message: "Escrow funded successfully",
+            escrow: escrow[0]
+        });
+
+    } catch (error) {
+        if (session.inTransaction()) await session.abortTransaction();
+        console.error("Error funding escrow:", error.message);
+
+        const statusCode = error.message.includes("Insufficient") || error.message.includes("Unauthorized") || error.message.includes("not found") ? 400 : 500;
+
+        return res.status(statusCode).json({
+            success: false,
+            message: error.message
+        });
+    } finally {
+        session.endSession();
+    }
+};
