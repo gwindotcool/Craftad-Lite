@@ -378,23 +378,6 @@ exports.getAvailableJobs = async (req, res) => {
         const limit = parseInt(req.query.limit) || 10;
         const skip = (page - 1) * limit;
 
-        const fieldKey = `page:${page}:limit:${limit}`; // The inner field name
-
-        // 1. Check Redis Hash for this specific page
-        const cachedData = await redis.hGet("job_feed", fieldKey);
-
-        if (cachedData) {
-            const parsedData = JSON.parse(cachedData);
-            return res.status(200).json({
-                success: true,
-                count: parsedData.jobs.length,
-                pagination: parsedData.pagination,
-                source: "redis cache ⚡",
-                jobs: parsedData.jobs
-            });
-        }
-
-        // 2. Cache Miss: Query MongoDB
         const query = { status: "open" };
         const totalItems = await Job.countDocuments(query);
         const totalPages = Math.ceil(totalItems / limit);
@@ -405,19 +388,10 @@ exports.getAvailableJobs = async (req, res) => {
             .skip(skip)
             .limit(limit);
 
-        const responsePayload = {
-            jobs,
-            pagination: { page, limit, totalItems, totalPages }
-        };
-
-        // 3. Save to Redis Hash and set expiration on the whole hash
-        await redis.hSet("job_feed", fieldKey, JSON.stringify(responsePayload));
-        await redis.expire("job_feed", 3600); // Expires the entire hash in 1 hour
-
         return res.status(200).json({
             success: true,
             count: jobs.length,
-            pagination: responsePayload.pagination,
+            pagination: { page, limit, totalItems, totalPages },
             source: "mongodb 🐢",
             jobs
         });
