@@ -62,7 +62,6 @@ exports.createJob = async (req, res) => {
         });
 
         // THE INVALIDATOR: Delete the stale cache so the next request fetches the new job
-        await redis.del("job_feed");
 
         return res.status(201).json({
             success: true,
