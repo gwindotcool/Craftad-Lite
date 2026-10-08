@@ -2,7 +2,6 @@ const mongoose = require("mongoose");
 const Escrow = require("../models/Escrow");
 
 exports.releaseEscrow = async (req, res) => {
-
     const session = await mongoose.startSession();
     session.startTransaction();
 
@@ -10,39 +9,85 @@ exports.releaseEscrow = async (req, res) => {
         const clientId = req.user._id || req.user.id || req.user.userId;
         const escrowId = req.params.id;
 
-        const escrow = await Escrow.findById(escrowId).session(session);
-
-        // 1. Find the specific escrow record and lock it for this transaction
+        // 1. Find and atomically lock the escrow record
+        const escrow = await Escrow.findOne({ _id: escrowId, escrowStatus: "HELD" }).session(session);
         if (!escrow) {
-            throw new Error(`EscrowId ${escrowId} not found`);
+            return res.status(404).json({
+                success: false,
+                message: "Escrow record not found or already released/refunded."
+            });
         }
 
-        // 2. Authorization: Only the client who created the escrow can release it
+        // 2. Authorization
         if (escrow.client.toString() !== clientId.toString()) {
-            throw new Error(`Unauthorized: Only the client can release these funds`);
+            await session.abortTransaction();
+            return res.status(403).json({
+                success: false,
+                message: "Unauthorized: Only the client can release these funds."
+            });
         }
 
-        // 3. State Validation (Idempotency): Prevent double-spending
-        if (escrow.escrowStatus !== "HELD"){
-            throw new Error(`Cannot release funds. Current status is ${escrow.escrowStatus}`);
+        // 3. Find the associated Job
+        const job = await Job.findById(escrow.job).session(session);
+        if (!job) {
+            throw new Error("Associated job not found");
         }
 
-        // 4. Update the Escrow State
+        // 4. Update Escrow State
         escrow.escrowStatus = "RELEASED";
         await escrow.save({ session });
 
-    }catch (error) {
-        await session.abortTransaction();
+        // 5. Credit the Artisan's Wallet
+        const artisanWallet = await Wallet.findOneAndUpdate(
+            { user: escrow.artisan },
+            { $inc: { balance: escrow.amount } },
+            { new: true, session }
+        );
 
-        // Differentiate between our intentional validation errors and server crashes
-        const statusCode = error.message.includes("Unauthorized") || error.message.includes("Cannot release") ? 400 : 500;
+        if (!artisanWallet) {
+            throw new Error("Artisan wallet not found for payout");
+        }
 
-        return res.status(statusCode).json({
+        // 6. Decrement Platform Escrow Balance
+        await PlatformWallet.findOneAndUpdate(
+            { key: "main" },
+            { $inc: { escrowBalance: -escrow.amount } },
+            { session }
+        );
+
+        // 7. Create Payout Transaction Ledger
+        const payoutRef = `PAY-${crypto.randomBytes(6).toString("hex").toUpperCase()}`;
+        await Transaction.create([{
+            user: escrow.artisan,
+            job: job._id,
+            amount: escrow.amount,
+            type: "job_payout",
+            status: "successful",
+            reference: payoutRef,
+            description: `Payout released for completed job: ${job.title}`
+        }], { session });
+
+        // 8. Update Job Status to Completed
+        job.status = "completed";
+        await job.save({ session });
+
+        // 9. Commit Transaction
+        await session.commitTransaction();
+
+        return res.status(200).json({
+            success: true,
+            message: "Escrow released successfully. Funds transferred to artisan wallet."
+        });
+
+    } catch (error) {
+        if (session.inTransaction()) await session.abortTransaction();
+        console.error("Error releasing escrow:", error.message);
+        return res.status(500).json({
             success: false,
-            message: error.message
+            message: "Internal server error during escrow release"
         });
     } finally {
-        session.endSession();
+        await session.endSession();
     }
 };
 exports.raiseDispute = async (req, res) => {
