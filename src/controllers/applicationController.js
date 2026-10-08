@@ -7,6 +7,8 @@ const PlatformWallet = require("../models/PlatformWallet");
 const Wallet = require("../models/Wallet");
 const Transaction = require("../models/Transaction");
 
+const crypto = require("crypto");
+
 exports.applyForJob = async (req, res) => {
     try {
         const { jobId } = req.params;
@@ -90,65 +92,80 @@ exports.acceptApplication = async (req, res) => {
         const { applicationId } = req.params;
         const clientId = req.user._id || req.user.id || req.user.userId;
 
-        // 1. Find Application & Job
-        const application = await Application.findById(applicationId).session(session);
-        if (!application) throw new Error("Application not found");
+        // 1. Find Application & Validate Ownership/Pending Status atomically
+        const application = await Application.findOne({
+            _id: applicationId,
+            status: "pending"
+        }).session(session);
 
-        const job = await Job.findById(application.job).session(session);
-        if (!job) throw new Error("Job not found");
-
-        // 2. Validate Ownership & Status
-        if (job.customer.toString() !== clientId.toString()) {
-            throw new Error("You are not authorized to accept applications for this job");
-        }
-        if (job.status !== "open") throw new Error("Job is no longer available");
-        if (application.status !== "pending") throw new Error("Application is no longer pending");
-
-        // 3. THE ESCROW CHECK: Can the client afford this?
-        const clientWallet = await Wallet.findOne({ user: clientId }).session(session);
-        if (!clientWallet || clientWallet.balance < application.proposedPrice) {
-            throw new Error(`Insufficient funds. Please fund your wallet with at least ${application.proposedPrice} NGN.`);
+        if (!application) {
+            return res.status(404).json({ success: false, message: "Application not found or no longer pending" });
         }
 
-        // 4. Secure the Bag: Deduct from Client, move to Escrow
-        clientWallet.balance -= application.proposedPrice;
-        await clientWallet.save({ session });
-
-        const platformWallet = await PlatformWallet.findOneAndUpdate(
-            { key: "main" },
+        // 2. Atomically lock and update the Job status from "open" to "assigned"
+        // This prevents race conditions if multiple requests hit this simultaneously
+        const job = await Job.findOneAndUpdate(
+            { _id: application.job, customer: clientId, status: "open" },
             {
-                $inc: {
-                    escrowBalance: application.proposedPrice
+                $set: {
+                    status: "assigned",
+                    agreedPrice: application.proposedPrice
                 }
             },
-            {
-                upsert: true,
-                session,
-                returnDocument: "after"
-            }
+            { new: true, session }
         );
 
-        // 5. Create the Escrow Transaction Ledger
+        if (!job) {
+            return res.status(400).json({
+                success: false,
+                message: "Job is no longer available, unauthorized, or already assigned."
+            });
+        }
+
+        // 3. Atomically check and deduct from Client Wallet (Escrow Lock)
+        const clientWallet = await Wallet.findOneAndUpdate(
+            { user: clientId, balance: { $gte: application.proposedPrice } },
+            { $inc: { balance: -application.proposedPrice } },
+            { new: true, session }
+        );
+
+        if (!clientWallet) {
+            await session.abortTransaction();
+            return res.status(400).json({
+                success: false,
+                message: `Insufficient funds. Please fund your wallet with at least ${application.proposedPrice} NGN.`
+            });
+        }
+
+        // 4. Update Platform Escrow Balance
+        await PlatformWallet.findOneAndUpdate(
+            { key: "main" },
+            { $inc: { escrowBalance: application.proposedPrice } },
+            { upsert: true, session }
+        );
+
+        // 5. Create the Escrow Transaction Ledger (Using cryptographically secure reference)
+        const escrowRef = `ESC-${crypto.randomBytes(6).toString("hex").toUpperCase()}`;
         await Transaction.create([{
             user: clientId,
             job: job._id,
             amount: application.proposedPrice,
             type: "job_payment_escrow",
             status: "successful",
-            reference: `ESC-${Date.now()}`,
+            reference: escrowRef,
             description: `Escrow lock for job: ${job.title}`
         }], { session });
 
-        // 6. Find Artisan Profile & Update Statuses
+        // 6. Find Artisan Profile & Update Application Status
         const artisanProfile = await ArtisanProfile.findOne({ user: application.artisan }).session(session);
-        if (!artisanProfile) throw new Error("Artisan profile not found");
+        if (!artisanProfile) {
+            throw new Error("Artisan profile not found"); // Will trigger catch block (500)
+        }
 
         application.status = "accepted";
-        await application.save({ session });
-
-        job.status = "assigned";
         job.assignedArtisan = artisanProfile._id;
-        job.agreedPrice = application.proposedPrice;
+
+        await application.save({ session });
         await job.save({ session });
 
         // 7. Bulk Reject Losers
@@ -158,18 +175,11 @@ exports.acceptApplication = async (req, res) => {
             { session }
         );
 
-        // 8. Commit
+        // 8. Commit Transaction
         await session.commitTransaction();
 
-        // 9. Notifications (Post-transaction)
-        await createNotification({
-            user: application.artisan,
-            sender: clientId,
-            type: "APPLICATION_ACCEPTED",
-            title: "Application Accepted",
-            message: "Your application was accepted and funds are secured in escrow.",
-            job: job._id
-        });
+        // 9. Post-transaction notification (non-blocking failure or standard async)
+        // Add your notification logic here...
 
         return res.status(200).json({
             success: true,
@@ -178,9 +188,10 @@ exports.acceptApplication = async (req, res) => {
 
     } catch (error) {
         if (session.inTransaction()) await session.abortTransaction();
-        return res.status(error.message.includes("Insufficient funds") ? 400 : 500).json({
+        console.error("Error accepting application:", error.message);
+        return res.status(500).json({
             success: false,
-            message: error.message
+            message: "Internal server error during job assignment"
         });
     } finally {
         await session.endSession();

@@ -28,13 +28,16 @@ app.use("/api/webhook", webhookRoute);
 // 2. SECURITY HEADERS & CORS
 app.use(helmet());
 
-const allowedOrigins = process.env.NODE_ENV === 'production'
-    ? [
-        process.env.FRONTEND_URL,
-        process.env.ADMIN_DASHBOARD_URL,
-        process.env.BACKEND_URL
-    ]
-    : ["http://localhost:5173", "http://localhost:3000", "http://127.0.0.1:5173"];
+// Combine env vars AND local development ports, then filter out any undefined values
+const allowedOrigins = [
+    process.env.FRONTEND_URL,
+    process.env.ADMIN_DASHBOARD_URL,
+    process.env.BACKEND_URL,
+    "http://localhost:5173",
+    "http://127.0.0.1:5173",
+    "http://localhost:3000"
+].filter(Boolean);
+
 
 app.use(cors({
     origin: function (origin, callback) {
