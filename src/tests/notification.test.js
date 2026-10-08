@@ -5,7 +5,7 @@ const Notification = require("../models/Notification");
 const jwt = require("jsonwebtoken");
 const mongoose = require("mongoose");
 
-require("./setup"); // Import in-memory database lifecycle setup
+require("./setup"); // Import database lifecycle setup
 
 describe("Notification API Integration Tests", () => {
     let userToken;
@@ -91,10 +91,4 @@ describe("Notification API Integration Tests", () => {
             expect(unreadCount).toBe(0);
         });
     });
-});
-
-// This runs automatically after all tests are finished
-afterAll(async () => {
-    // Forcefully close the database connection
-    await mongoose.connection.close();
 });

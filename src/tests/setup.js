@@ -1,34 +1,28 @@
 const crypto = require("crypto");
-if (!global.crypto) {
-    global.crypto = crypto.webcrypto;
-}
-
+Object.defineProperty(globalThis, "crypto", { value: crypto.webcrypto });
 
 const mongoose = require("mongoose");
+require("dotenv").config();
 
-
-const { MongoMemoryServer } = require("mongodb-memory-server");
-
-let mongoServer;
-
-// Connect to in-memory database before all tests
 beforeAll(async () => {
-    mongoServer = await MongoMemoryServer.create();
-    const mongoUri = mongoServer.getUri();
-    await mongoose.connect(mongoUri);
-});
-
-// Clear collections after each test to keep tests isolated
-afterEach(async () => {
-    const collections = mongoose.connection.collections;
-    for (const key in collections) {
-        await collections[key].deleteMany();
+    if (mongoose.connection.readyState === 0) {
+        await mongoose.connect(process.env.MONGODB_URI || "mongodb://127.0.0.1:27017/craftad_lite", {
+            serverSelectionTimeoutMS: 5000,
+        });
     }
-});
+}, 30000);
 
-// Close database connection and stop memory server after tests complete
+afterEach(async () => {
+    if (mongoose.connection.readyState === 1) {
+        const collections = mongoose.connection.collections;
+        for (const key in collections) {
+            await collections[key].deleteMany();
+        }
+    }
+}, 30000);
+
 afterAll(async () => {
-    await mongoose.connection.dropDatabase();
-    await mongoose.connection.close();
-    await mongoServer.stop();
-});
+    if (mongoose.connection.readyState !== 0) {
+        await mongoose.connection.close();
+    }
+}, 30000);
