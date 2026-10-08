@@ -381,7 +381,7 @@ exports.getAvailableJobs = async (req, res) => {
         const fieldKey = `page:${page}:limit:${limit}`; // The inner field name
 
         // 1. Check Redis Hash for this specific page
-        const cachedData = await redis.hget("job_feed", fieldKey);
+        const cachedData = await redis.hGet("job_feed", fieldKey);
 
         if (cachedData) {
             const parsedData = JSON.parse(cachedData);
@@ -411,7 +411,7 @@ exports.getAvailableJobs = async (req, res) => {
         };
 
         // 3. Save to Redis Hash and set expiration on the whole hash
-        await redis.hset("job_feed", fieldKey, JSON.stringify(responsePayload));
+        await redis.hSet("job_feed", fieldKey, JSON.stringify(responsePayload));
         await redis.expire("job_feed", 3600); // Expires the entire hash in 1 hour
 
         return res.status(200).json({
