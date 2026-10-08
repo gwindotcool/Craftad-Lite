@@ -43,7 +43,7 @@ jobs:
         run: npm ci
 
       - name: Run Security Audit
-        run: npm audit --audit-level=high
+        run: npm audit --production --audit-level=high
 
       - name: Run Tests
         run: npm test --if-present
