@@ -6,6 +6,9 @@ const rateLimit = require('express-rate-limit');
 
 const app = express();
 
+app.set('trust proxy', 1);
+
+
 const authRoutes = require("./src/routes/authRoutes");
 const artisanRoutes = require("./src/routes/artisanRoutes");
 const jobRoutes = require("./src/routes/jobRoutes");
@@ -22,13 +25,13 @@ const escrowRoutes = require("./src/routes/escrowRoutes");
 const swaggerUi = require("swagger-ui-express");
 const swaggerSpec = require("./src/config/swagger");
 
+
 // 1. WEBHOOKS (Must be before express.json() and before rate limiters)
 app.use("/api/webhook", webhookRoute);
 
 // 2. SECURITY HEADERS & CORS
 app.use(helmet());
 
-// Combine env vars AND local development ports, then filter out any undefined values
 const allowedOrigins = [
     process.env.FRONTEND_URL,
     process.env.ADMIN_DASHBOARD_URL,
@@ -41,7 +44,6 @@ const allowedOrigins = [
 
 app.use(cors({
     origin: function (origin, callback) {
-        // allow requests with no origin (like mobile apps or curl requests)
         if (!origin || allowedOrigins.includes(origin)) {
             callback(null, true);
         } else {
@@ -50,6 +52,10 @@ app.use(cors({
     },
     credentials: true
 }));
+
+// 3. BODY PARSER (MUST BE NEAR THE TOP, BEFORE RATE LIMITERS AND ROUTES)
+app.use(express.json());
+app.use(express.urlencoded({ extended: true }));
 
 // 3. RATE LIMITING (Placed after webhook, so webhook is ignored)
 const globalLimiter = rateLimit({
@@ -70,8 +76,6 @@ const authLimiter = rateLimit({
 app.use('/api/auth/login', authLimiter);
 app.use('/api/admin/auth/login', authLimiter);
 
-// 4. BODY PARSER (Converts stream to req.body)
-app.use(express.json());
 
 // 5. DATA SANITIZATION (Express 5 Compatible Wrapper)
 app.use((req, res, next) => {
