@@ -21,7 +21,7 @@ jobs:
           --health-timeout 5s
           --health-retries 5
       redis:
-        image: redis:latest
+        image: redis:7-alpine
         ports:
           - 6379:6379
         options: >-
@@ -36,7 +36,7 @@ jobs:
 
     steps:
       - name: Checkout Repository
-        uses: actions/checkout@v3
+        uses: actions/checkout@v4
 
       - name: Setup Node.js ${{ matrix.node-version }}
         uses: actions/setup-node@v4
@@ -54,5 +54,6 @@ jobs:
         run: npm test --if-present
         env:
           MONGODB_URI: mongodb://127.0.0.1:27017/craftad_lite
+          REDIS_URL: redis://127.0.0.1:6379
           JWT_SECRET: super_secret_test_key_for_ci
           NODE_ENV: test
