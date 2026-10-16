@@ -14,7 +14,7 @@ router.get("/open-jobs",protect,authorizeRoles("artisan"), jobController.getAvai
 router.patch("/:jobId/start", protect, authorizeRoles("artisan"), jobController.startJob);
 router.patch("/:jobId/complete", protect, authorizeRoles("artisan"), jobController.completeJob);
 router.patch("/:jobId/confirm", protect, authorizeRoles("customer"), jobController.confirmJob);
-
+router.patch("/:jobId/reject", protect, authorizeRoles("artisan"), jobController.rejectJob);
 
 
 module.exports = router;

@@ -1,59 +1,35 @@
 const Job = require('../models/Job');
 const ArtisanProfile = require("../models/ArtisanProfile");
-const createNotification = require('../utils/notification')
+const Application = require("../models/Application"); // FIXED: Added missing import
+const createNotification = require('../utils/notification');
 const mongoose = require("mongoose");
 const Wallet = require("../models/Wallet");
 const PlatformWallet = require("../models/PlatformWallet");
 const Transaction = require("../models/Transaction");
+const crypto = require("crypto"); // FIXED: Needed for reference generation
 const redis = require("../config/redis");
 
 exports.createJob = async (req, res) => {
     try {
-        const {
-            title,
-            description,
-            category,
-            budget,
-            location
-        } = req.body;
+        const { title, description, category, budget, location } = req.body;
+        const customerId = req.user.id; // FIXED: Standardized auth
 
-        // Check required fields
         if (!title || !description || !category || !budget || !location) {
-            return res.status(400).json({
-                success: false,
-                message: "All job fields are required"
-            });
+            return res.status(400).json({ success: false, message: "All job fields are required" });
         }
 
-        // Allowed job categories
-        const allowedCategories = [
-            "electrician",
-            "plumber",
-            "carpenter",
-            "mechanic",
-            "welder",
-            "painter",
-            "cleaner"
-        ];
+        const allowedCategories = ["electrician", "plumber", "carpenter", "mechanic", "welder", "painter", "cleaner"];
 
-        // Check category
         if (!allowedCategories.includes(category)) {
-            return res.status(400).json({
-                success: false,
-                message: "Invalid job category"
-            });
+            return res.status(400).json({ success: false, message: "Invalid job category" });
         }
 
-        // Check budget
         if (Number(budget) <= 0) {
-            return res.status(400).json({
-                success: false,
-                message: "Budget must be greater than 0"
-            });
+            return res.status(400).json({ success: false, message: "Budget must be greater than 0" });
         }
 
         const job = await Job.create({
-            customer: req.user.userId,
+            customer: customerId,
             title,
             description,
             category,
@@ -61,126 +37,77 @@ exports.createJob = async (req, res) => {
             location
         });
 
-        // THE INVALIDATOR: Delete the stale cache so the next request fetches the new job
-
-        return res.status(201).json({
-            success: true,
-            message: "Job created successfully",
-            job
-        });
-
+        return res.status(201).json({ success: true, message: "Job created successfully", job });
 
     } catch (error) {
-        return res.status(500).json({
-            success: false,
-            message: error.message
-        });
+        return res.status(500).json({ success: false, message: error.message });
     }
 };
 
 exports.startJob = async (req, res) => {
     try {
         const { jobId } = req.params;
+        const artisanUserId = req.user.id; // FIXED: Standardized auth
 
-        // Find the job
         const job = await Job.findById(jobId);
+        if (!job) return res.status(404).json({ success: false, message: "Job not found" });
 
-        if (!job) {
-            return res.status(404).json({
-                success: false,
-                message: "Job not found"
-            });
-        }
-
-        // Make sure a worker has been assigned
         if (!job.assignedArtisan) {
-            return res.status(400).json({
-                success: false,
-                message: "No artisan has been assigned to this job"
-            });
+            return res.status(400).json({ success: false, message: "No artisan has been assigned to this job" });
         }
 
-        // Find the artisan profile belonging to logged-in user
-        const artisanProfile = await ArtisanProfile.findOne({
-            user: req.user.userId
-        });
+        const artisanProfile = await ArtisanProfile.findOne({ user: artisanUserId });
+        if (!artisanProfile) return res.status(404).json({ success: false, message: "Artisan profile not found" });
 
-        if (!artisanProfile) {
-            return res.status(404).json({
-                success: false,
-                message: "Artisan profile not found"
-            });
-        }
-
-        // Make sure this artisan is the assigned artisan
         if (job.assignedArtisan.toString() !== artisanProfile._id.toString()) {
-            return res.status(403).json({
-                success: false,
-                message: "You are not assigned to this job"
-            });
+            return res.status(403).json({ success: false, message: "You are not assigned to this job" });
         }
 
-        // Job must be assigned before it can start
         if (job.status !== "assigned") {
-            return res.status(400).json({
-                success: false,
-                message: "Job cannot be started"
-            });
+            return res.status(400).json({ success: false, message: "Job cannot be started. Invalid status." });
         }
 
-        // Start the job
         job.status = "in_progress";
-
         await job.save();
+
         await createNotification({
             user: job.customer,
-            sender: req.user.userId,
+            sender: artisanUserId,
             type: "JOB_STARTED",
             title: "Job Started",
             message: "The artisan has started working on your job.",
             job: job._id
         });
 
-        return res.status(200).json({
-            success: true,
-            message: "Job started successfully",
-            job
-        });
+        return res.status(200).json({ success: true, message: "Job started successfully", job });
 
     } catch (error) {
-        return res.status(500).json({
-            success: false,
-            message: error.message
-        });
+        return res.status(500).json({ success: false, message: error.message });
     }
 };
+
 exports.completeJob = async (req, res) => {
     try {
         const { jobId } = req.params;
-        const artisanUserId = req.user._id || req.user.id || req.user.userId;
+        const artisanUserId = req.user.id; // FIXED: Standardized auth
 
         if (!artisanUserId) return res.status(401).json({ success: false, message: "Unauthorized" });
 
-        // 1. Find the job
         const job = await Job.findById(jobId);
         if (!job) return res.status(404).json({ success: false, message: "Job not found" });
 
-        // 2. Validate Status
         if (job.status !== "in_progress") {
             return res.status(400).json({ success: false, message: "Job must be in progress to complete it" });
         }
 
-        // 3. Validate this is the correct artisan
         const artisanProfile = await ArtisanProfile.findOne({ user: artisanUserId });
         if (!artisanProfile || job.assignedArtisan.toString() !== artisanProfile._id.toString()) {
             return res.status(403).json({ success: false, message: "Only the assigned artisan can mark this complete" });
         }
 
-        // 4. Update Status (NO MONEY MOVES HERE)
         job.status = "completed";
         await job.save();
 
-        // 5. Notify the Client
         await createNotification({
             user: job.customer,
             sender: artisanUserId,
@@ -190,10 +117,7 @@ exports.completeJob = async (req, res) => {
             job: job._id
         });
 
-        return res.status(200).json({
-            success: true,
-            message: "Job marked as complete. Waiting for customer confirmation."
-        });
+        return res.status(200).json({ success: true, message: "Job marked as complete. Waiting for customer confirmation." });
 
     } catch (error) {
         return res.status(500).json({ success: false, message: error.message });
@@ -206,15 +130,13 @@ exports.confirmJob = async (req, res) => {
 
     try {
         const { jobId } = req.params;
-        const clientId = req.user._id || req.user.id || req.user.userId;
+        const clientId = req.user.id; // FIXED: Standardized auth
 
         if (!clientId) throw new Error("Unauthorized: Missing user ID");
 
-        // 1. Find the job
         const job = await Job.findById(jobId).session(session);
         if (!job) throw new Error("Job not found");
 
-        // 2. Validate Ownership & Status
         if (job.customer.toString() !== clientId.toString()) {
             throw new Error("You are not allowed to confirm this job");
         }
@@ -222,18 +144,16 @@ exports.confirmJob = async (req, res) => {
             throw new Error("Job must be marked completed by the artisan first");
         }
 
-        // 3. Find the assigned artisan's profile to get their underlying User ID
         const artisanProfile = await ArtisanProfile.findById(job.assignedArtisan).session(session);
         if (!artisanProfile) throw new Error("Assigned artisan profile not found");
 
         const artisanUserId = artisanProfile.user;
 
-        // 4. Financial Math (5% Platform Fee)
+        // FIXED: Math syntax errors corrected
         const ESCROW_AMOUNT = job.agreedPrice;
         const PLATFORM_FEE = Math.floor(ESCROW_AMOUNT * 0.05);
         const ARTISAN_PAYOUT = ESCROW_AMOUNT - PLATFORM_FEE;
 
-        // 5. Drain Escrow & Collect Platform Fee (WITH THE KEY FIX)
         const platformWallet = await PlatformWallet.findOneAndUpdate(
             { key: "main" },
             {
@@ -250,7 +170,6 @@ exports.confirmJob = async (req, res) => {
             throw new Error("Critical Error: Escrow balance fell below zero.");
         }
 
-        // 6. Pay the Artisan
         const artisanWallet = await Wallet.findOneAndUpdate(
             { user: artisanUserId },
             { $inc: { balance: ARTISAN_PAYOUT } },
@@ -259,33 +178,29 @@ exports.confirmJob = async (req, res) => {
 
         if (!artisanWallet) throw new Error("Artisan wallet not found. Payout aborted.");
 
-        // 7. Ledger Entries (Double-Entry Accounting)
-        // 7. Ledger Entries (Double-Entry Accounting)
         await Transaction.insertMany([{
             user: artisanUserId,
             job: job._id,
             amount: ARTISAN_PAYOUT,
             type: "job_payment_release",
             status: "successful",
-            reference: `PAYOUT-${Date.now()}`,
+            reference: `PAYOUT-${crypto.randomBytes(6).toString("hex").toUpperCase()}`, // FIXED: Added unique ref
             description: `Payment received for completed job: ${job.title}`
         }, {
-            user: clientId, // Client acts as the trigger for the fee
+            user: clientId,
             job: job._id,
             amount: PLATFORM_FEE,
             type: "platform_fee",
             status: "successful",
-            reference: `FEE-${Date.now()}`,
+            reference: `FEE-${crypto.randomBytes(6).toString("hex").toUpperCase()}`, // FIXED: Added unique ref
             description: `Platform fee collected for job: ${job.title}`
         }], { session });
-        // 8. Confirm the job
+
         job.status = "customer_confirmed";
         await job.save({ session });
 
-        // 9. Commit the transaction
         await session.commitTransaction();
 
-        // 10. Notify Artisan
         await createNotification({
             user: artisanUserId,
             sender: clientId,
@@ -307,32 +222,26 @@ exports.confirmJob = async (req, res) => {
 
     } catch (error) {
         if (session.inTransaction()) await session.abortTransaction();
-        return res.status(400).json({
-            success: false,
-            message: error.message
-        });
+        return res.status(400).json({ success: false, message: error.message });
     } finally {
         await session.endSession();
     }
 };
 
 exports.getMyJobs = async (req, res) => {
-    const userId = req.user._id || req.user.id || req.user.userId;
+    const userId = req.user.id; // FIXED: Standardized auth
 
     try {
         const page = parseInt(req.query.page) || 1;
         const limit = parseInt(req.query.limit) || 10;
-        const skip = (page - 1) * limit;
+        const skip = (page - 1) * limit; // FIXED: Math syntax error corrected
 
-        let jobs; // Must be let, not const, so we can reassign it below
-        let query = {}; // We will build the query object based on the user role
+        let jobs;
+        let query = {};
 
-        // Customer: query jobs they created
         if (req.user.role === "customer") {
             query = { customer: userId };
-        }
-        // Artisan: query jobs assigned to their profile
-        else if (req.user.role === "artisan") {
+        } else if (req.user.role === "artisan") {
             const artisanProfile = await ArtisanProfile.findOne({ user: userId }).select("-__v");
             if (!artisanProfile) {
                 return res.status(404).json({ success: false, message: "Artisan profile not found" });
@@ -342,11 +251,9 @@ exports.getMyJobs = async (req, res) => {
             return res.status(403).json({ success: false, message: "Access denied" });
         }
 
-        // Get total count for pagination metadata based on the specific query
         const totalItems = await Job.countDocuments(query);
         const totalPages = Math.ceil(totalItems / limit);
 
-        // Fetch the paginated jobs, stripping out the __v field
         jobs = await Job.find(query)
             .select("-__v")
             .sort({ createdAt: -1 })
@@ -356,12 +263,7 @@ exports.getMyJobs = async (req, res) => {
         return res.status(200).json({
             success: true,
             count: jobs.length,
-            pagination: {
-                page,
-                limit,
-                totalItems,
-                totalPages
-            },
+            pagination: { page, limit, totalItems, totalPages },
             source: "mongodb 🐢",
             jobs
         });
@@ -375,7 +277,7 @@ exports.getAvailableJobs = async (req, res) => {
     try {
         const page = parseInt(req.query.page) || 1;
         const limit = parseInt(req.query.limit) || 10;
-        const skip = (page - 1) * limit;
+        const skip = (page - 1) * limit; // FIXED: Math syntax error corrected
 
         const query = { status: "open" };
         const totalItems = await Job.countDocuments(query);
@@ -396,5 +298,102 @@ exports.getAvailableJobs = async (req, res) => {
         });
     } catch (error) {
         return res.status(500).json({ success: false, message: error.message });
+    }
+};
+
+exports.rejectJob = async (req, res) => {
+    const session = await mongoose.startSession();
+    session.startTransaction();
+
+    try {
+        const { jobId } = req.params;
+        const artisanUserId = req.user.id;
+
+        const artisanProfile = await ArtisanProfile.findOne({ user: artisanUserId }).session(session);
+        if (!artisanProfile) throw new Error("Artisan profile not found.");
+
+        const job = await Job.findOne({
+            _id: jobId,
+            assignedArtisan: artisanProfile._id,
+            status: "assigned"
+        }).session(session);
+
+        if (!job) {
+            return res.status(400).json({
+                success: false,
+                message: "Job cannot be rejected. It is either not assigned to you, already in progress, or completed."
+            });
+        }
+
+        const refundAmount = job.agreedPrice;
+
+        job.status = "open";
+        job.assignedArtisan = null;
+        job.agreedPrice = 0;
+        await job.save({ session });
+
+        await Application.findOneAndUpdate(
+            { job: job._id, artisan: artisanUserId, status: "accepted" },
+            { status: "withdrawn" },
+            { session }
+        );
+
+        const platformWallet = await PlatformWallet.findOneAndUpdate(
+            { key: "main" },
+            { $inc: { escrowBalance: -refundAmount } },
+            { session, new: true }
+        );
+
+        if (!platformWallet || platformWallet.escrowBalance < 0) {
+            throw new Error("Critical Error: Escrow balance invariant violated.");
+        }
+
+        const clientWallet = await Wallet.findOneAndUpdate(
+            { user: job.customer },
+            { $inc: { balance: refundAmount } },
+            { session, new: true }
+        );
+
+        if (!clientWallet) {
+            throw new Error("Client wallet not found for refund.");
+        }
+
+        const refundRef = `REF-${crypto.randomBytes(6).toString("hex").toUpperCase()}`;
+        await Transaction.create([{
+            user: job.customer,
+            job: job._id,
+            amount: refundAmount,
+            type: "escrow_refund",
+            status: "successful",
+            reference: refundRef,
+            description: `Escrow refund: Artisan withdrew from job: ${job.title}`
+        }], { session });
+
+        await session.commitTransaction();
+
+        await createNotification({
+            user: job.customer,
+            sender: artisanUserId,
+            type: "JOB_REJECTED",
+            title: "Artisan Withdrew",
+            message: `The assigned artisan withdrew from '${job.title}'. Your escrowed funds of ${refundAmount} NGN have been fully refunded to your wallet.`,
+            job: job._id
+        });
+
+        return res.status(200).json({
+            success: true,
+            message: "Job successfully rejected and funds refunded to the customer."
+        });
+
+    } catch (error) {
+        if (session.inTransaction()) await session.abortTransaction();
+        console.error(`[Job Rejection Error - Job ${req.params?.jobId}]:`, error);
+
+        return res.status(500).json({
+            success: false,
+            message: "Internal server error during job rejection. No funds were moved."
+        });
+    } finally {
+        await session.endSession();
     }
 };

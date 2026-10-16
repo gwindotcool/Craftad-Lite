@@ -46,6 +46,12 @@ describe("Notification API Integration Tests", () => {
                 .get("/api/notifications")
                 .set("Authorization", `Bearer ${userToken}`);
 
+// If the status isn't 200, this will print the exact server error in your terminal before failing
+            if (res.statusCode !== 200) {
+                console.error("Test Failed. Server responded with:", res.body);
+            }
+
+            expect(res.statusCode).toEqual(200);
             expect(res.statusCode).toEqual(200);
             expect(res.body.success).toBe(true);
             expect(res.body.count).toBe(2);

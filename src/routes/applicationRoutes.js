@@ -11,4 +11,6 @@ router.post("/apply/:jobId", protect, authorizeRoles("artisan"),applicationContr
 router.get("/job/:jobId", protect, authorizeRoles("customer"), applicationController.getJobApplications);
 router.patch("/accept/:applicationId", protect, authorizeRoles("customer"),applicationController.acceptApplication);
 
+router.patch("/:applicationId/reject",protect, authorizeRoles("customer"), applicationController.rejectApplication);
+
 module.exports = router;
