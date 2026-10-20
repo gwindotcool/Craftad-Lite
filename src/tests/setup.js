@@ -4,21 +4,22 @@ if (!globalThis.crypto) {
 }
 
 const mongoose = require("mongoose");
-require("dotenv").config();
+const { MongoMemoryServer } = require("mongodb-memory-server");
 
-const MONGO_URI = process.env.MONGODB_URI;
-
-if (!MONGO_URI) {
-    throw new Error("CRITICAL: MONGODB_URI is missing in environment variables. Aborting tests to protect local data.");
-}
+let memoryServer;
 
 beforeAll(async () => {
+    memoryServer = await MongoMemoryServer.create();
+    const uri = memoryServer.getUri();
+    if (!uri.includes("127.0.0.1") && !uri.includes("localhost")) {
+        throw new Error("Refusing to run tests against a remote database.");
+    }
     if (mongoose.connection.readyState === mongoose.ConnectionStates.disconnected) {
-        await mongoose.connect(MONGO_URI, {
+        await mongoose.connect(uri, {
             serverSelectionTimeoutMS: 5000,
         });
     }
-}, 30000);
+}, 60000);
 
 afterEach(async () => {
     if (mongoose.connection.readyState === mongoose.ConnectionStates.connected) {
@@ -32,5 +33,8 @@ afterEach(async () => {
 afterAll(async () => {
     if (mongoose.connection.readyState !== mongoose.ConnectionStates.disconnected) {
         await mongoose.connection.close();
+    }
+    if (memoryServer) {
+        await memoryServer.stop();
     }
 }, 30000);
