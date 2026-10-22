@@ -1,3 +1,4 @@
+
 const swaggerJsdoc = require("swagger-jsdoc");
 
 const options = {
@@ -7,7 +8,8 @@ const options = {
         info: {
             title: "Craftad Lite API",
             version: "1.0.0",
-            description: "Official API Documentation for the Craftad Artisan Marketplace",
+            description:
+                "Official API Documentation for the Craftad Artisan Marketplace",
             contact: {
                 name: "Backend Engineering Team"
             }
@@ -15,10 +17,7 @@ const options = {
 
         servers: [
             {
-                url:
-                    process.env.NODE_ENV === "production"
-                        ? process.env.BACKEND_URL
-                        : "http://localhost:3000",
+                url: process.env.BACKEND_URL || "http://localhost:3000",
                 description: "Environment Server"
             }
         ],
@@ -34,7 +33,6 @@ const options = {
         }
     },
 
-    // Swagger reads documentation from the docs folder
     apis: ["./src/docs/*.js"]
 };
 
