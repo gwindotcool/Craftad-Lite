@@ -1,3 +1,7 @@
+// Inject test environment variables BEFORE anything else loads
+process.env.JWT_SECRET = "test_super_secret_key_for_jest";
+process.env.NODE_ENV = "test";
+
 const crypto = require("crypto");
 if (!globalThis.crypto) {
     Object.defineProperty(globalThis, "crypto", { value: crypto.webcrypto });
