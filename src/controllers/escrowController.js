@@ -1,5 +1,12 @@
 const mongoose = require("mongoose");
 const Escrow = require("../models/Escrow");
+const Job = require("../models/Job");
+const Wallet = require("../models/Wallet");
+const Application = require("../models/Application");
+const PlatformWallet = require("../models/PlatformWallet");
+const Transaction = require("../models/Transaction");
+const crypto = require("crypto");
+
 
 exports.releaseEscrow = async (req, res) => {
     const session = await mongoose.startSession();
@@ -33,14 +40,19 @@ exports.releaseEscrow = async (req, res) => {
             throw new Error("Associated job not found");
         }
 
-        // 4. Update Escrow State
+        // 4. Calculate the 5% Platform Fee
+        const platformFee = escrow.amount * 0.05;
+        const artisanPayout = escrow.amount - platformFee;
+
+        // Update Escrow State & record the fee taken
         escrow.escrowStatus = "RELEASED";
+        escrow.platformFee = platformFee;
         await escrow.save({ session });
 
-        // 5. Credit the Artisan's Wallet
+        // 5. Credit the Artisan's Wallet (Payout minus fee)
         const artisanWallet = await Wallet.findOneAndUpdate(
             { user: escrow.artisan },
-            { $inc: { balance: escrow.amount } },
+            { $inc: { balance: artisanPayout } },
             { new: true, session }
         );
 
@@ -48,25 +60,29 @@ exports.releaseEscrow = async (req, res) => {
             throw new Error("Artisan wallet not found for payout");
         }
 
-        // 6. Decrement Platform Escrow Balance
+        // 6. Double-Entry: Update Platform Treasury
         await PlatformWallet.findOneAndUpdate(
             { key: "main" },
-            { $inc: { escrowBalance: -escrow.amount } },
+            {
+                $inc: {
+                    escrowBalance: -escrow.amount, // The full amount leaves the locked escrow bucket
+                    totalFees: platformFee         // The 5% cut drops into the revenue bucket
+                }
+            },
             { session }
         );
 
-        // 7. Create Payout Transaction Ledger
+        // 7. Create Payout Transaction Ledger for Artisan
         const payoutRef = `PAY-${crypto.randomBytes(6).toString("hex").toUpperCase()}`;
         await Transaction.create([{
             user: escrow.artisan,
             job: job._id,
-            amount: escrow.amount,
-            type: "job_payout",
+            amount: artisanPayout, // Only log the actual money they received
+            type: "job_payment_release",
             status: "successful",
             reference: payoutRef,
-            description: `Payout released for completed job: ${job.title}`
+            description: `Payout released (5% platform fee deducted)`
         }], { session });
-
         // 8. Update Job Status to Completed
         job.status = "completed";
         await job.save({ session });
@@ -152,7 +168,7 @@ exports.resolveDispute = async (req, res) => {
     session.startTransaction();
 
     try {
-        const adminId = req.user._id || req.user.id || req.user.userId;
+        const adminId = req.admin._id;
         const escrowId = req.params.id;
         const { resolution } = req.body;
 
@@ -173,10 +189,33 @@ exports.resolveDispute = async (req, res) => {
             throw new Error(`Cannot resolve escrow. Current status is ${escrow.escrowStatus}, expected DISPUTED.`);
         }
 
-        // 4. Execute the Verdict
+        // 4. Execute the Verdict & Move the Money!
         escrow.escrowStatus = resolution;
         escrow.resolvedBy = adminId;
-        escrow.disputeReason = escrow.disputeReason + ` [Resolved by Admin ${adminId}]`;
+        escrow.disputeReason = escrow.disputeReason + ` [Resolved by Admin]`;
+
+        if (resolution === "REFUNDED") {
+            // Give money back to the client
+            await Wallet.findOneAndUpdate(
+                { user: escrow.client },
+                { $inc: { balance: escrow.amount } },
+                { session }
+            );
+        } else if (resolution === "FORCED_RELEASED") {
+            // Give money to the artisan (ignoring platform fee for now to keep it simple, or apply it here)
+            await Wallet.findOneAndUpdate(
+                { user: escrow.artisan },
+                { $inc: { balance: escrow.amount } },
+                { session }
+            );
+        }
+
+        // Deduct from locked platform escrow either way, because the funds are no longer "HELD"
+        await PlatformWallet.findOneAndUpdate(
+            { key: "main" },
+            { $inc: { escrowBalance: -escrow.amount } },
+            { session }
+        );
 
         await escrow.save({ session });
         await session.commitTransaction();
@@ -201,12 +240,6 @@ exports.resolveDispute = async (req, res) => {
         session.endSession();
     }
 };
-const Job = require("../models/Job");
-const Wallet = require("../models/Wallet");
-const Application = require("../models/Application");
-const PlatformWallet = require("../models/PlatformWallet");
-const Transaction = require("../models/Transaction");
-const crypto = require("crypto");
 
 exports.fundEscrow = async (req, res) => {
     const session = await mongoose.startSession();
@@ -222,7 +255,7 @@ exports.fundEscrow = async (req, res) => {
             throw new Error("Job not found");
         }
 
-        if (job.client.toString() !== clientId.toString()) {
+        if (job.customer.toString() !== clientId.toString()) {
             throw new Error("Unauthorized: Only the job owner can fund escrow");
         }
 
@@ -241,8 +274,8 @@ exports.fundEscrow = async (req, res) => {
             throw new Error("Invalid job funding amount");
         }
 
-        // 3. Check Customer Wallet Balance
-        const customerWallet = await Wallet.findOne({ user: clientId }).session(session);
+        // 3. Check Customer Wallet Balance (Explicitly cast clientId to ObjectId)
+        const customerWallet = await Wallet.findOne({ user: new mongoose.Types.ObjectId(clientId) }).session(session);
         if (!customerWallet || customerWallet.balance < amount) {
             throw new Error("Insufficient wallet balance to fund escrow");
         }
@@ -258,11 +291,13 @@ exports.fundEscrow = async (req, res) => {
         await customerWallet.save({ session });
 
         // 6. Create Escrow Record
+        const escrowRef = `ESC-${crypto.randomBytes(6).toString("hex").toUpperCase()}`;
         const escrow = await Escrow.create([{
             job: jobId,
             client: clientId,
             artisan: application.artisan,
             amount: amount,
+            reference: escrowRef,
             escrowStatus: "HELD"
         }], { session });
 

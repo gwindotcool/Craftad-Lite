@@ -13,9 +13,10 @@ const transactionSchema = new mongoose.Schema(
                 "wallet_fund",
                 "withdrawal",
                 "job_payment_escrow",
-                "job_payment_release", // <-- YOU NEED THIS
-                "platform_fee",        // <-- AND YOU NEED THIS
-                "escrow_refund"
+                "job_payment_release",
+                "platform_fee",
+                "escrow_refund",
+                "escrow_funded"
             ],
             required: true
         },

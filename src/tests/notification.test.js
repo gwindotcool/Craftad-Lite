@@ -1,9 +1,16 @@
+
+process.env.JWT_SECRET = "test_super_secret_key_for_jest";
+process.env.NODE_ENV = "test";
+
+require("./setup.js");
+
 const request = require("supertest");
 const app = require("../../app");
 const User = require("../models/User");
 const Notification = require("../models/Notification");
 const jwt = require("jsonwebtoken");
 const mongoose = require("mongoose");
+
 
 require("./setup"); // Import database lifecycle setup
 

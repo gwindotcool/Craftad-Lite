@@ -66,4 +66,4 @@ const escrowSchema = new mongoose.Schema(
     }
 );
 
-module.exports = mongoose.model("Escrow", escrowSchema);
+module.exports = mongoose.models.Escrow || mongoose.model("Escrow", escrowSchema);

@@ -144,15 +144,26 @@ exports.confirmJob = async (req, res) => {
             throw new Error("Job must be marked completed by the artisan first");
         }
 
+        // 1. FIND AND LOCK THE ASSOCIATED ESCROW DOCUMENT (CRITICAL BRIDGE)
+        const escrow = await Escrow.findOne({ job: jobId, escrowStatus: "HELD" }).session(session);
+        if (!escrow) {
+            throw new Error("Active escrow record not found for this job");
+        }
+
         const artisanProfile = await ArtisanProfile.findById(job.assignedArtisan).session(session);
         if (!artisanProfile) throw new Error("Assigned artisan profile not found");
 
         const artisanUserId = artisanProfile.user;
 
-        // THE ACTUAL FIX WITHOUT GIT DIFF TRASH
-        const ESCROW_AMOUNT = job.agreedPrice;
+        // 2. CALCULATE USING THE ESCROW AMOUNT (Source of Truth)
+        const ESCROW_AMOUNT = escrow.amount;
         const PLATFORM_FEE = Math.floor(ESCROW_AMOUNT * 0.05);
         const ARTISAN_PAYOUT = ESCROW_AMOUNT - PLATFORM_FEE;
+
+        // 3. UPDATE ESCROW STATE TO PREVENT RE-ENTRANCY
+        escrow.escrowStatus = "RELEASED";
+        escrow.platformFee = PLATFORM_FEE;
+        await escrow.save({ session });
 
         const platformWallet = await PlatformWallet.findOneAndUpdate(
             { key: "main" },

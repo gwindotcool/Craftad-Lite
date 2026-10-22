@@ -1,15 +1,11 @@
 /**
  * @swagger
  * tags:
- *   name: Wallet
- *   description: Wallet funding, balance, bank account, and withdrawal operations
- */
-
-/**
- * @swagger
+ *   - name: Wallet
+ *     description: Wallet funding, balance, bank account, and withdrawal operations
+ *
  * components:
  *   schemas:
- *
  *     BankDetails:
  *       type: object
  *       properties:
@@ -111,11 +107,7 @@
  *           type: number
  *           minimum: 1000
  *           example: 5000
- */
-
-
-/**
- * @swagger
+ *
  * /api/wallet/me:
  *   get:
  *     summary: Get current user's wallet
@@ -126,23 +118,9 @@
  *     responses:
  *       200:
  *         description: Wallet retrieved successfully
- *         content:
- *           application/json:
- *             schema:
- *               type: object
- *               properties:
- *                 success:
- *                   type: boolean
- *                   example: true
- *                 wallet:
- *                   $ref: "#/components/schemas/Wallet"
  *       500:
  *         description: Internal server error
- */
-
-
-/**
- * @swagger
+ *
  * /api/wallet/transactions:
  *   get:
  *     summary: Get transaction history
@@ -166,25 +144,9 @@
  *     responses:
  *       200:
  *         description: Transactions retrieved successfully
- *         content:
- *           application/json:
- *             schema:
- *               type: object
- *               properties:
- *                 success:
- *                   type: boolean
- *                   example: true
- *                 transactions:
- *                   type: array
- *                   items:
- *                     $ref: "#/components/schemas/Transaction"
  *       500:
  *         description: Internal server error
- */
-
-
-/**
- * @swagger
+ *
  * /api/wallet/deposits:
  *   post:
  *     summary: Fund wallet
@@ -201,26 +163,9 @@
  *     responses:
  *       200:
  *         description: Wallet funded successfully
- *         content:
- *           application/json:
- *             schema:
- *               type: object
- *               properties:
- *                 success:
- *                   type: boolean
- *                   example: true
- *                 message:
- *                   type: string
- *                   example: "Wallet funded successfully"
- *                 wallet:
- *                   $ref: "#/components/schemas/Wallet"
  *       500:
  *         description: Internal server error
- */
-
-
-/**
- * @swagger
+ *
  * /api/wallet/banks/resolve:
  *   get:
  *     summary: Verify a bank account
@@ -244,32 +189,11 @@
  *     responses:
  *       200:
  *         description: Bank account verified successfully
- *         content:
- *           application/json:
- *             schema:
- *               type: object
- *               properties:
- *                 success:
- *                   type: boolean
- *                   example: true
- *                 data:
- *                   type: object
- *                   properties:
- *                     accountName:
- *                       type: string
- *                       example: "John Doe"
- *                     accountNumber:
- *                       type: string
- *                       example: "0123456789"
  *       400:
  *         description: Missing or invalid bank account details
  *       500:
  *         description: Internal server error
- */
-
-
-/**
- * @swagger
+ *
  * /api/wallet/banks:
  *   post:
  *     summary: Add withdrawal bank account
@@ -290,11 +214,7 @@
  *         description: Missing bank account information
  *       500:
  *         description: Internal server error
- */
-
-
-/**
- * @swagger
+ *
  * /api/wallet/withdrawals:
  *   post:
  *     summary: Request wallet withdrawal

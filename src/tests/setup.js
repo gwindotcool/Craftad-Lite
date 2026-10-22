@@ -1,44 +1,32 @@
-// Inject test environment variables BEFORE anything else loads
-process.env.JWT_SECRET = "test_super_secret_key_for_jest";
-process.env.NODE_ENV = "test";
+const { MongoMemoryReplSet } = require('mongodb-memory-server');
+const mongoose = require('mongoose');
 
-const crypto = require("crypto");
-if (!globalThis.crypto) {
-    Object.defineProperty(globalThis, "crypto", { value: crypto.webcrypto });
-}
-
-const mongoose = require("mongoose");
-const { MongoMemoryServer } = require("mongodb-memory-server");
-
-let memoryServer;
+let replSet;
 
 beforeAll(async () => {
-    memoryServer = await MongoMemoryServer.create();
-    const uri = memoryServer.getUri();
+    // 1. Boot up an in-memory replica set (Required for Mongoose Transactions)
+    replSet = await MongoMemoryReplSet.create({ replSet: { count: 1 } });
+    const uri = replSet.getUri();
+
     if (!uri.includes("127.0.0.1") && !uri.includes("localhost")) {
         throw new Error("Refusing to run tests against a remote database.");
     }
-    if (mongoose.connection.readyState === mongoose.ConnectionStates.disconnected) {
-        await mongoose.connect(uri, {
-            serverSelectionTimeoutMS: 5000,
-        });
-    }
-}, 60000);
 
-afterEach(async () => {
-    if (mongoose.connection.readyState === mongoose.ConnectionStates.connected) {
-        const collections = mongoose.connection.collections;
-        await Promise.all(
-            Object.values(collections).map((collection) => collection.deleteMany({}))
-        );
-    }
-}, 30000);
+    await mongoose.connect(uri);
+});
 
 afterAll(async () => {
-    if (mongoose.connection.readyState !== mongoose.ConnectionStates.disconnected) {
-        await mongoose.connection.close();
+    // 2. Shut down cleanly
+    await mongoose.disconnect();
+    if (replSet) {
+        await replSet.stop();
     }
-    if (memoryServer) {
-        await memoryServer.stop();
+});
+
+afterEach(async () => {
+    // 3. Clear database between tests
+    const collections = mongoose.connection.collections;
+    for (const key in collections) {
+        await collections[key].deleteMany();
     }
-}, 30000);
+});

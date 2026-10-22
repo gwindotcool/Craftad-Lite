@@ -31,7 +31,4 @@ const platformWalletSchema = new mongoose.Schema(
         timestamps: true
     }
 );
-module.exports = mongoose.model(
-    "PlatformWallet",
-    platformWalletSchema
-);
+module.exports = mongoose.models.PlatformWallet || mongoose.model("PlatformWallet", platformWalletSchema);
