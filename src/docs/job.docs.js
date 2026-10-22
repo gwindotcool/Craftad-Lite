@@ -34,7 +34,7 @@
  *           example: 25000
  *         agreedPrice:
  *           type: number
- *           description: Final price locked in escrow after negotiation
+ *           description: Final agreed price
  *           example: 22000
  *         location:
  *           type: string
@@ -97,7 +97,7 @@
  *           type: string
  *           example: "Ibadan"
  *
- * /api/jobs:
+ * /api/job/create-job:
  *   post:
  *     summary: Create a new job
  *     tags: [Jobs]
@@ -114,10 +114,12 @@
  *         description: Job created successfully
  *       400:
  *         description: Validation error
+ *       401:
+ *         description: Authentication required
  *
- * /api/jobs/my-jobs:
+ * /api/job/my-jobs:
  *   get:
- *     summary: Get authenticated user's jobs
+ *     summary: Get the authenticated user's jobs
  *     tags: [Jobs]
  *     security:
  *       - bearerAuth: []
@@ -135,8 +137,10 @@
  *     responses:
  *       200:
  *         description: Jobs retrieved successfully
+ *       401:
+ *         description: Authentication required
  *
- * /api/jobs/available:
+ * /api/job/open-jobs:
  *   get:
  *     summary: Get open jobs for artisans
  *     tags: [Jobs]
@@ -155,9 +159,11 @@
  *           default: 10
  *     responses:
  *       200:
- *         description: Available jobs retrieved
+ *         description: Available jobs retrieved successfully
+ *       401:
+ *         description: Authentication required
  *
- * /api/jobs/{jobId}/start:
+ * /api/job/{jobId}/start:
  *   patch:
  *     summary: Artisan starts an assigned job
  *     tags: [Jobs]
@@ -172,10 +178,12 @@
  *     responses:
  *       200:
  *         description: Job started
+ *       401:
+ *         description: Authentication required
  *
- * /api/jobs/{jobId}/complete:
+ * /api/job/{jobId}/complete:
  *   patch:
- *     summary: Artisan marks job as completed
+ *     summary: Artisan marks a job as completed
  *     tags: [Jobs]
  *     security:
  *       - bearerAuth: []
@@ -187,11 +195,12 @@
  *           type: string
  *     responses:
  *       200:
- *         description: Job completed, waiting for customer confirmation
+ *         description: Job completed and awaiting customer confirmation
  *
- * /api/jobs/{jobId}/confirm:
+ * /api/job/{jobId}/confirm:
  *   patch:
- *     summary: Customer confirms job and releases escrow
+ *     summary: Customer confirms job completion
+ *     description: Confirms completion and triggers the backend's payment-release flow.
  *     tags: [Jobs]
  *     security:
  *       - bearerAuth: []
@@ -203,12 +212,12 @@
  *           type: string
  *     responses:
  *       200:
- *         description: Escrow released, platform fee collected, artisan paid
+ *         description: Job completion confirmed
  *
- * /api/jobs/{jobId}/reject:
+ * /api/job/{jobId}/reject:
  *   patch:
- *     summary: Artisan withdraws from assigned job
- *     description: Rolls back job to open status and refunds customer's escrow.
+ *     summary: Artisan rejects an assigned job
+ *     description: The backend determines the job-status and any applicable escrow-refund behavior.
  *     tags: [Jobs]
  *     security:
  *       - bearerAuth: []
@@ -220,9 +229,9 @@
  *           type: string
  *     responses:
  *       200:
- *         description: Artisan withdrawn, escrow refunded
+ *         description: Job rejection processed
  *
- * /api/applications/job/{jobId}/apply:
+ * /api/applications/apply/{jobId}:
  *   post:
  *     summary: Artisan applies for a job
  *     tags: [Applications]
@@ -244,15 +253,36 @@
  *             properties:
  *               proposedPrice:
  *                 type: number
+ *                 example: 22000
  *               message:
  *                 type: string
+ *                 example: "I have 5 years experience and can fix this today."
  *     responses:
  *       201:
  *         description: Application submitted
+ *       401:
+ *         description: Authentication required
  *
- * /api/applications/{applicationId}/accept:
+ * /api/applications/job/{jobId}:
+ *   get:
+ *     summary: Get applications for a job
+ *     tags: [Applications]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: jobId
+ *         required: true
+ *         schema:
+ *           type: string
+ *     responses:
+ *       200:
+ *         description: Job applications retrieved successfully
+ *
+ * /api/applications/accept/{applicationId}:
  *   patch:
- *     summary: Customer accepts application (Triggers Escrow)
+ *     summary: Customer accepts an application
+ *     description: Accepts an application and triggers the backend's job-assignment and escrow flow.
  *     tags: [Applications]
  *     security:
  *       - bearerAuth: []
@@ -264,11 +294,11 @@
  *           type: string
  *     responses:
  *       200:
- *         description: Artisan assigned, funds locked in escrow
+ *         description: Application accepted
  *
  * /api/applications/{applicationId}/reject:
  *   patch:
- *     summary: Customer declines application
+ *     summary: Customer rejects an application
  *     tags: [Applications]
  *     security:
  *       - bearerAuth: []
@@ -282,3 +312,4 @@
  *       200:
  *         description: Application rejected
  */
+

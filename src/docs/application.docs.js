@@ -61,7 +61,7 @@
  *         application:
  *           $ref: "#/components/schemas/Application"
  *
- * /api/applications/job/{jobId}/apply:
+ * /api/applications/apply/{jobId}:
  *   post:
  *     summary: Apply for a job
  *     description: Allows an authenticated artisan to submit an application for an open job.
@@ -97,7 +97,7 @@
  * /api/applications/job/{jobId}:
  *   get:
  *     summary: Get applications for a job
- *     description: Returns all applications submitted for a specific job. Only the customer who owns the job can access its applications.
+ *     description: Returns applications submitted for a job. Only the customer who owns the job should have access.
  *     tags: [Applications]
  *     security:
  *       - bearerAuth: []
@@ -121,10 +121,10 @@
  *       500:
  *         description: Server error.
  *
- * /api/applications/{applicationId}/accept:
+ * /api/applications/accept/{applicationId}:
  *   patch:
  *     summary: Accept a job application
- *     description: Allows the customer who owns a job to accept a pending artisan application. The proposed price is deducted from the customer's wallet and transferred into platform escrow.
+ *     description: Allows the customer to accept a pending artisan application. The proposed price is deducted from the customer's wallet and transferred into platform escrow.
  *     tags: [Applications]
  *     security:
  *       - bearerAuth: []
@@ -140,7 +140,7 @@
  *       200:
  *         description: Application accepted and funds secured in escrow.
  *       400:
- *         description: Bad request. Insufficient wallet funds, job no longer available, or application no longer pending.
+ *         description: Insufficient wallet funds, job unavailable, or application no longer pending.
  *       401:
  *         description: Unauthorized.
  *       404:
@@ -151,7 +151,7 @@
  * /api/applications/{applicationId}/reject:
  *   patch:
  *     summary: Reject a job application
- *     description: Explicitly decline an artisan's application.
+ *     description: Explicitly declines an artisan's application.
  *     tags: [Applications]
  *     security:
  *       - bearerAuth: []
@@ -167,7 +167,7 @@
  *       200:
  *         description: Application rejected successfully.
  *       400:
- *         description: Bad request. Application no longer pending.
+ *         description: Application is no longer pending.
  *       401:
  *         description: Unauthorized.
  *       403:
@@ -177,3 +177,4 @@
  *       500:
  *         description: Server error.
  */
+
