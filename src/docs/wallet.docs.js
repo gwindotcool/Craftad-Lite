@@ -147,7 +147,7 @@
  *       500:
  *         description: Internal server error
  *
- * /api/wallet/deposits:
+ * /api/wallet/deposit:
  *   post:
  *     summary: Fund wallet
  *     description: Adds the specified amount to the authenticated user's wallet and records the funding transaction.
