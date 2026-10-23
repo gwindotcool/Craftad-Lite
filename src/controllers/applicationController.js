@@ -85,10 +85,18 @@ exports.getJobApplications = async (req, res) => {
 };
 
 exports.acceptApplication = async (req, res) => {
-    const session = await mongoose.startSession();
-    session.startTransaction();
+    let session;
+    let stage = "initializing";
 
     try {
+        stage = "starting MongoDB session";
+        session = await mongoose.startSession();
+
+        stage = "starting transaction";
+        session.startTransaction();
+
+        stage = "reading application";
+
         const { applicationId } = req.params;
         const clientId = req.user.id; // Fixed: Assuming your middleware is cleaned up
 
@@ -178,20 +186,38 @@ exports.acceptApplication = async (req, res) => {
 
         return res.status(200).json({ success: true, message: "Application accepted and funds secured in escrow." });
 
-    } catch (error) {
-        if (session.inTransaction()) await session.abortTransaction();
-        console.error(`[Escrow Error - Client ${req.user.id}]:`, error.message);
+    }catch (error) {
+    if (session?.inTransaction()) {
+        try {
+            await session.abortTransaction();
+        } catch (abortError) {
+            console.error(
+                "[Assignment rollback failed]",
+                abortError
+            );
+        }
+    }
 
-        // Safe error response - don't leak database errors unless it's our custom insufficient funds error
-        const message = error.message.includes("Insufficient funds")
-            ? error.message
-            : "Internal server error during job assignment.";
+    console.error("[Job Assignment Failed]", {
+        stage,
+        name: error.name,
+        message: error.message,
+        stack: error.stack,
+        clientId: req.user?.id
+    });
 
-        return res.status(400).json({ success: false, message });
-    } finally {
+    return res.status(500).json({
+        success: false,
+        message: "Internal server error during job assignment."
+    });
+} finally {
+    if (session) {
         await session.endSession();
     }
+}
 };
+
+
 exports.rejectApplication = async (req, res) => {
     try {
         const { applicationId } = req.params;
