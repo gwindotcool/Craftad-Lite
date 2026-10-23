@@ -175,14 +175,23 @@ exports.acceptApplication = async (req, res) => {
         await session.commitTransaction();
 
         // 9. Fire Notification AFTER transaction commits (so if it fails, we don't send a false alarm)
-        await createNotification({
-            user: application.artisan,
-            sender: clientId,
-            type: "APPLICATION_ACCEPTED",
-            title: "You Got the Job!",
-            message: `Your application for '${job.title}' was accepted. The funds are locked in escrow. You can now start the job.`,
-            job: job._id
-        });
+        stage = "sending notification";
+
+        try {
+            await createNotification({
+                user: application.artisan,
+                sender: clientId,
+                type: "APPLICATION_ACCEPTED",
+                title: "You Got the Job!",
+                message: `Your application for '${job.title}' was accepted. The funds are locked in escrow. You can now start the job.`,
+                job: job._id
+            });
+        } catch (notificationError) {
+            console.error(
+                "[Application accepted, but notification failed]",
+                notificationError.stack || notificationError
+            );
+        }
 
         return res.status(200).json({ success: true, message: "Application accepted and funds secured in escrow." });
 
