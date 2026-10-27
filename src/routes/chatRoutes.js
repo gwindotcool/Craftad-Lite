@@ -7,5 +7,6 @@ router.use(protect);
 
 // 1. Get chat of logged-in user
 router.get("/:jobId", chatController.getChatHistory);
+router.post("/:jobId", chatController.sendMessage);
 
 module.exports = router;

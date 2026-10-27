@@ -53,3 +53,87 @@ exports.getChatHistory = async (req, res) => {
         return res.status(500).json({ success: false, message: "Internal server error retrieving chat history." });
     }
 };
+
+exports.sendMessage = async (req, res) => {
+    try {
+        const { jobId } = req.params;
+        const { text } = req.body;
+        const userId = req.user.id;
+
+        // 1. Check that the message is not empty
+        if (!text || !text.trim()) {
+            return res.status(400).json({
+                success: false,
+                message: "Message text is required."
+            });
+        }
+
+        // 2. Find the job
+        const job = await Job.findById(jobId)
+            .select("customer assignedArtisan")
+            .populate({
+                path: "assignedArtisan",
+                select: "user"
+            });
+
+        if (!job) {
+            return res.status(404).json({
+                success: false,
+                message: "Job not found."
+            });
+        }
+
+        // 3. Identify the customer and assigned artisan
+        const customerId = job.customer.toString();
+
+        const artisanUserId = job.assignedArtisan?.user
+            ? job.assignedArtisan.user.toString()
+            : null;
+
+        // 4. Only the customer or assigned artisan can chat
+        const isCustomer = customerId === userId.toString();
+        const isArtisan = artisanUserId === userId.toString();
+
+        if (!isCustomer && !isArtisan) {
+            return res.status(403).json({
+                success: false,
+                message: "You are not allowed to send messages in this chat."
+            });
+        }
+
+        // 5. Determine who receives the message
+        const recipientId = isCustomer
+            ? artisanUserId
+            : customerId;
+
+        if (!recipientId) {
+            return res.status(400).json({
+                success: false,
+                message: "This job does not have an assigned artisan yet."
+            });
+        }
+
+        // 6. Save the message to MongoDB
+        const message = await Message.create({
+            job: jobId,
+            sender: userId,
+            recipient: recipientId,
+            text: text.trim()
+        });
+
+        // 7. Return the saved message
+        return res.status(201).json({
+            success: true,
+            message: "Message sent successfully.",
+            data: message
+        });
+
+    } catch (error) {
+        console.error("[Send Message Error]:", error);
+
+        return res.status(500).json({
+            success: false,
+            message: "Internal server error while sending message."
+        });
+    }
+};
