@@ -3,21 +3,35 @@
  * /api/chat/{jobId}:
  *   get:
  *     summary: Get chat history for a job
- *     description: Returns the chat messages for a specific job. Only the customer who owns the job or the artisan assigned to the job can access the chat history.
+ *     description: Retrieves paginated chat messages for a job. Access is restricted to the customer who owns the job and the user account belonging to the assigned artisan.
  *     tags:
  *       - Chat
  *     security:
  *       - bearerAuth: []
- *
  *     parameters:
  *       - in: path
  *         name: jobId
  *         required: true
- *         description: ID of the job whose chat history should be retrieved
+ *         description: MongoDB ID of the job
  *         schema:
  *           type: string
  *           example: 68f123456789abcdef123456
- *
+ *       - in: query
+ *         name: page
+ *         required: false
+ *         description: Page number for paginated results
+ *         schema:
+ *           type: integer
+ *           minimum: 1
+ *           default: 1
+ *       - in: query
+ *         name: limit
+ *         required: false
+ *         description: Maximum number of messages per page
+ *         schema:
+ *           type: integer
+ *           minimum: 1
+ *           default: 50
  *     responses:
  *       200:
  *         description: Chat history retrieved successfully
@@ -32,41 +46,54 @@
  *                 count:
  *                   type: integer
  *                   example: 2
+ *                 page:
+ *                   type: integer
+ *                   example: 1
  *                 messages:
  *                   type: array
  *                   items:
  *                     $ref: '#/components/schemas/Message'
- *
+ *       401:
+ *         description: Authentication is required or the token is invalid
  *       403:
- *         description: User is not part of this job
- *         content:
- *           application/json:
- *             schema:
- *               type: object
- *               properties:
- *                 success:
- *                   type: boolean
- *                   example: false
- *                 message:
- *                   type: string
- *                   example: Access denied. You are not part of this job.
- *
+ *         description: The authenticated user is not a participant in this job
  *       404:
  *         description: Job not found
- *         content:
- *           application/json:
- *             schema:
- *               type: object
- *               properties:
- *                 success:
- *                   type: boolean
- *                   example: false
- *                 message:
- *                   type: string
- *                   example: Job not found
- *
  *       500:
  *         description: Internal server error
+ *
+ *   post:
+ *     summary: Send a chat message
+ *     description: Sends and stores a message in a job conversation. Only the customer who owns the job or the user account belonging to the assigned artisan can send messages.
+ *     tags:
+ *       - Chat
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: jobId
+ *         required: true
+ *         description: MongoDB ID of the job associated with the conversation
+ *         schema:
+ *           type: string
+ *           example: 68f123456789abcdef123456
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required:
+ *               - text
+ *             properties:
+ *               text:
+ *                 type: string
+ *                 minLength: 1
+ *                 description: Text content of the message
+ *                 example: Hello, I would like to discuss the job.
+ *     responses:
+ *       201:
+ *         description: Message sent successfully
  *         content:
  *           application/json:
  *             schema:
@@ -74,14 +101,23 @@
  *               properties:
  *                 success:
  *                   type: boolean
- *                   example: false
+ *                   example: true
  *                 message:
  *                   type: string
- *                   example: Internal server error
- */
-
-/**
- * @swagger
+ *                   example: Message sent successfully.
+ *                 data:
+ *                   $ref: '#/components/schemas/Message'
+ *       400:
+ *         description: Message text is empty or the job has no assigned artisan
+ *       401:
+ *         description: Authentication is required or the token is invalid
+ *       403:
+ *         description: The authenticated user is not a participant in this job
+ *       404:
+ *         description: Job not found
+ *       500:
+ *         description: Internal server error
+ *
  * components:
  *   schemas:
  *     Message:
@@ -94,40 +130,36 @@
  *       properties:
  *         _id:
  *           type: string
+ *           description: Unique ID of the message
  *           example: 68f123456789abcdef123456
- *
  *         job:
  *           type: string
- *           description: ID of the job associated with the message
+ *           description: ID of the associated job
  *           example: 68f123456789abcdef123456
- *
  *         sender:
  *           type: string
  *           description: ID of the user who sent the message
  *           example: 68f123456789abcdef123457
- *
  *         recipient:
  *           type: string
- *           description: ID of the user receiving the message
+ *           description: ID of the receiving user
  *           example: 68f123456789abcdef123458
- *
  *         text:
  *           type: string
  *           description: Message content
  *           example: I have started working on the job.
- *
  *         isRead:
  *           type: boolean
- *           description: Indicates whether the recipient has read the message
+ *           description: Whether the message has been marked as read
  *           example: false
- *
  *         createdAt:
  *           type: string
  *           format: date-time
- *           example: 2026-10-04T10:30:00.000Z
- *
+ *           description: Message creation timestamp
+ *           example: '2026-10-28T10:30:00.000Z'
  *         updatedAt:
  *           type: string
  *           format: date-time
- *           example: 2026-10-04T10:30:00.000Z
+ *           description: Last update timestamp
+ *           example: '2026-10-28T10:30:00.000Z'
  */
