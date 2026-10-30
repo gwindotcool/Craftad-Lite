@@ -6,8 +6,10 @@ const mongoose = require("mongoose");
 const Wallet = require("../models/Wallet");
 const PlatformWallet = require("../models/PlatformWallet");
 const Transaction = require("../models/Transaction");
+const Escrow = require("../models/Escrow");
 const crypto = require("crypto"); // FIXED: Needed for reference generation
 const redis = require("../config/redis");
+
 
 exports.createJob = async (req, res) => {
     try {
